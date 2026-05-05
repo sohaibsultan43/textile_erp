@@ -43,6 +43,7 @@ type StockDetail = {
 
 export const WarehouseModule = ({ userRole }: WarehouseModuleProps) => {
   type WarehouseWithStock = Location & {
+    vendor?: { id: string; name: string } | null;
     stockItems?: Array<{
       id: string;
       quantity: number;
@@ -91,6 +92,7 @@ export const WarehouseModule = ({ userRole }: WarehouseModuleProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [stockDialogWarehouse, setStockDialogWarehouse] = useState<WarehouseWithStock | null>(null);
   const [stockDetailItems, setStockDetailItems] = useState<StockDetail[]>([]);
+  const [stockDetailSearchQuery, setStockDetailSearchQuery] = useState('');
   const [isStockDetailLoading, setIsStockDetailLoading] = useState(false);
   const [articles, setArticles] = useState<Article[]>([]);
 
@@ -311,6 +313,7 @@ export const WarehouseModule = ({ userRole }: WarehouseModuleProps) => {
   const openStockDialog = async (warehouse: WarehouseWithStock) => {
     setStockDialogWarehouse(warehouse);
     setStockDetailItems([]);
+    setStockDetailSearchQuery('');
     setIsStockDetailLoading(true);
     try {
       const detail = await locationApi.getStockDetail(warehouse.id);
@@ -338,6 +341,47 @@ export const WarehouseModule = ({ userRole }: WarehouseModuleProps) => {
     return Number(item.quantity) || 0;
   };
 
+  const filteredStockDetailItems = stockDetailItems.filter((item) => {
+    const query = stockDetailSearchQuery.trim().toLowerCase();
+    if (!query) return true;
+
+    const article = item.article;
+    const reedPick = formatArticleReedPickLine(
+      {
+        yarnCount: article?.yarnCount,
+        composition: article?.composition,
+        constraction: article?.constraction,
+        width: article?.width,
+      } as any
+    );
+    const receivingDate = item.receivingDate ? formatDate(item.receivingDate) : '';
+
+    const searchableParts = [
+      article?.name || '',
+      article?.unit || '',
+      reedPick || '',
+      item.lotNo || '',
+      item.supplier?.name || '',
+      item.supplier?.contactPerson || '',
+      item.supplier?.phone || '',
+      item.transactionNo || '',
+      receivingDate,
+      item.issuedToDyeing?.workOrderNo || '',
+      item.issuedToDyeing?.dyeingHouse || '',
+      item.issuedToDyeing?.status || '',
+      item.pricePerUnit != null ? String(item.pricePerUnit) : '',
+      String(getItemMeters(item)),
+      String(getItemThans(item)),
+      item.issuedToDyeing?.greyThan != null ? String(item.issuedToDyeing.greyThan) : '',
+      item.issuedToDyeing?.greyMeters != null ? String(item.issuedToDyeing.greyMeters) : '',
+    ];
+
+    return searchableParts
+      .join(' ')
+      .toLowerCase()
+      .includes(query);
+  });
+
   const exportStockDetailsToExcel = () => {
     if (!stockDialogWarehouse) return;
 
@@ -361,7 +405,7 @@ export const WarehouseModule = ({ userRole }: WarehouseModuleProps) => {
       'Dyeing Status',
     ];
 
-    const rows = stockDetailItems.map((item) => {
+    const rows = filteredStockDetailItems.map((item) => {
       const article = item.article;
       const receivingDate = item.receivingDate ? formatDate(item.receivingDate) : '';
       const reedPick = formatArticleReedPickLine(
@@ -595,7 +639,11 @@ export const WarehouseModule = ({ userRole }: WarehouseModuleProps) => {
       <Dialog
         open={Boolean(stockDialogWarehouse)}
         onOpenChange={(open) => {
-          if (!open) { setStockDialogWarehouse(null); setStockDetailItems([]); }
+          if (!open) {
+            setStockDialogWarehouse(null);
+            setStockDetailItems([]);
+            setStockDetailSearchQuery('');
+          }
         }}
       >
         <DialogContent className="max-w-[95vw] w-full max-h-[90vh] overflow-y-auto">
@@ -612,29 +660,36 @@ export const WarehouseModule = ({ userRole }: WarehouseModuleProps) => {
                 variant="outline"
                 size="sm"
                 onClick={exportStockDetailsToExcel}
-                disabled={isStockDetailLoading || stockDetailItems.length === 0}
+                disabled={isStockDetailLoading || filteredStockDetailItems.length === 0}
               >
                 <Download className="mr-2 h-4 w-4" />
                 Export to Excel
               </Button>
             </div>
+            <Input
+              type="text"
+              placeholder="Search stock (article, lot, supplier, transaction, WO...)"
+              value={stockDetailSearchQuery}
+              onChange={(e) => setStockDetailSearchQuery(e.target.value)}
+              className="max-w-md"
+            />
             {/* Summary row */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
               <div className="p-3 border rounded-lg">
                 <div className="text-xs text-muted-foreground">Total Thans</div>
                 <div className="text-lg font-semibold">
-                  {stockDetailItems.reduce((s, i) => s + getItemThans(i), 0).toLocaleString()}
+                  {filteredStockDetailItems.reduce((s, i) => s + getItemThans(i), 0).toLocaleString()}
                 </div>
               </div>
               <div className="p-3 border rounded-lg">
                 <div className="text-xs text-muted-foreground">Total Meters</div>
                 <div className="text-lg font-semibold">
-                  {stockDetailItems.reduce((s, i) => s + getItemMeters(i), 0).toLocaleString()}
+                  {filteredStockDetailItems.reduce((s, i) => s + getItemMeters(i), 0).toLocaleString()}
                 </div>
               </div>
               <div className="p-3 border rounded-lg">
                 <div className="text-xs text-muted-foreground">Lines</div>
-                <div className="text-lg font-semibold">{stockDetailItems.length}</div>
+                <div className="text-lg font-semibold">{filteredStockDetailItems.length}</div>
               </div>
             </div>
 
@@ -660,14 +715,14 @@ export const WarehouseModule = ({ userRole }: WarehouseModuleProps) => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {stockDetailItems.length === 0 ? (
+                    {filteredStockDetailItems.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={11} className="text-center text-muted-foreground py-6">
-                          No stock items in this warehouse
+                          {stockDetailItems.length === 0 ? 'No stock items in this warehouse' : 'No stock items match your search'}
                         </TableCell>
                       </TableRow>
                     ) : (
-                      stockDetailItems.map(item => {
+                      filteredStockDetailItems.map(item => {
                         const article = item.article;
                         const reedPick = formatArticleReedPickLine(
                           { yarnCount: article.yarnCount, composition: article.composition, constraction: article.constraction, width: article.width } as any
