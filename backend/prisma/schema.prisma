@@ -1,0 +1,1047 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x", "windows"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum UserRole {
+  owner
+  warehouse
+  outlet
+  sales
+  finance
+  purchase_officer
+  quality_inspector
+  production_manager
+  inventory_controller
+  accounts_officer
+}
+
+enum Grade {
+  A
+  B
+  C
+}
+
+enum LocationType {
+  godown
+  salepoint
+}
+
+enum OrderStatus {
+  pending
+  approved
+  completed
+  rejected
+  cancelled
+}
+
+enum PaymentType {
+  cash
+  credit
+}
+
+enum RequisitionStatus {
+  requested
+  approved
+  rejected
+  dispatched
+  received
+}
+
+enum GatePassStatus {
+  issued
+  in_transit
+  received
+}
+
+enum GatePassPurpose {
+  sale
+  transfer
+  return
+}
+
+enum InvoiceStatus {
+  paid
+  partial
+  unpaid
+  overdue
+}
+
+enum InventoryStage {
+  RM
+  WIP
+  FG
+}
+
+enum PurchaseStatus {
+  pending
+  approved
+  partially_received
+  complete
+  cancelled
+}
+
+enum GRNStatus {
+  pending
+  confirmed
+  cancelled
+}
+
+enum QualityStatus {
+  passed
+  failed
+  partial
+}
+
+enum ProcessStage {
+  dyeing
+  finishing
+  cutting
+  stitching
+  packing
+}
+
+enum ProductionStatus {
+  draft
+  submitted
+  in_progress
+  completed
+  cancelled
+}
+
+enum DyeingJobStatus {
+  issued
+  in_dyeing
+  received
+  completed
+}
+
+enum LFormItemType {
+  standard_than
+  loose_than
+  cut_piece
+}
+
+enum LFormStatus {
+  draft
+  finalized
+  corrected
+}
+
+enum VoucherType {
+  bulk
+  loose
+}
+
+enum VoucherStatus {
+  draft
+  approved
+  transferred
+}
+
+// New Enums for Enhanced Master Data
+enum ArticleStatus {
+  active
+  inactive
+  discontinued
+}
+
+enum ArticleCategory {
+  grey_material
+  packaging_material
+  finished_goods
+  service_item
+}
+
+enum CustomerStatus {
+  active
+  on_hold
+  inactive
+}
+
+enum VendorCategory {
+  supplier
+  dyeing
+  packaging
+  other
+}
+
+// Core Tables
+model User {
+  id       String   @id @default(cuid())
+  email    String   @unique
+  password String
+  role     UserRole
+  name     String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  createdSaleOrders       SaleOrder[]         @relation("SaleOrderCreatedBy")
+  approvedSaleOrders      SaleOrder[]         @relation("SaleOrderApprovedBy")
+  createdRequisitions     StockRequisition[]  @relation("RequisitionRequestedBy")
+  approvedRequisitions    StockRequisition[]  @relation("RequisitionApprovedBy")
+  createdPurchaseOrders   PurchaseOrder[]     @relation("PurchaseOrderCreatedBy")
+  approvedPurchaseOrders  PurchaseOrder[]     @relation("PurchaseOrderApprovedBy")
+  receivedGRNs            GRN[]               @relation("GRNReceivedBy")
+  inspectedItems          QualityInspection[] @relation("InspectedBy")
+  createdProductionOrders ProductionOrder[]   @relation("ProductionOrderCreatedBy")
+  issuedMaterials         MaterialIssue[]     @relation("MaterialIssuedBy")
+  receivedMaterials       MaterialReceipt[]   @relation("MaterialReceivedBy")
+  createdDyeingJobs       DyeingJob[]         @relation("DyeingJobCreatedBy")
+  createdDyeingReceives   DyeingReceive[]     @relation("DyeingReceiveCreatedBy")
+  createdLForms           LForm[]             @relation("LFormCreatedBy")
+  finalizedLForms         LForm[]             @relation("LFormFinalizedBy")
+  createdVouchers         Voucher[]           @relation("VoucherCreatedBy")
+  approvedVouchers        Voucher[]           @relation("VoucherApprovedBy")
+  createdArticles         Article[]           @relation("ArticleCreatedBy")
+  assignedCustomers       Customer[]          @relation("CustomerSalesperson")
+
+  @@map("users")
+}
+
+model Customer {
+  id     String         @id @default(cuid())
+  name   String
+  status CustomerStatus @default(active)
+
+  // Contact & Address Details
+  phone              String?
+  billingAddress     String? // Structured billing address
+  billingCity        String?
+  billingState       String?
+  billingPostalCode  String?
+  shippingAddress    String? // Separate shipping address
+  shippingCity       String?
+  shippingState      String?
+  shippingPostalCode String?
+
+  // Credit & Payment Management
+  creditLimit     Float
+  creditDays      Int
+  isCashOnly      Boolean @default(false)
+  currentBalance  Float   @default(0)
+  acceptsCheque   Boolean @default(false) // Cheque option
+  acceptsPDC      Boolean @default(false) // Post-Dated Cheque tracking
+  pdcDueDays      Int? // PDC due days configuration
+  advancePayment  Float? // Advance payment amount
+  advanceRequired Boolean @default(false) // Advance payment flag
+  deliveryDays    Int? // Standard lead time
+
+  // Associations
+  salespersonId String? // Salesperson assignment
+  warehouseId   String? // Warehouse association
+
+  // Notes
+  remarks String? // Comments/Remarks for sales and finance notes
+
+  // Legacy field (keeping for backward compatibility)
+  city String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  saleOrders  SaleOrder[]
+  invoices    Invoice[]
+  salesperson User?       @relation("CustomerSalesperson", fields: [salespersonId], references: [id])
+  warehouse   Location?   @relation("CustomerWarehouse", fields: [warehouseId], references: [id])
+
+  @@map("customers")
+}
+
+model Article {
+  id            String          @id @default(cuid())
+  name          String          @unique // Article name must be unique
+  category      ArticleCategory @default(grey_material) // Mandatory classification
+  status        ArticleStatus   @default(active)
+  fabricType    String
+  color         String? // Optional at creation
+  grade         Grade? // Optional at creation
+  lotNumber     String? // Optional at creation
+  unit          String
+  cost          Float? // Optional at creation
+  salePrice     Float? // Optional at creation
+  yarnCount     String? // Yarn count (e.g. 40pv 40 pv)
+  composition   String? // Composition (e.g. 80:20)
+  constraction  String?
+  width         String? // Width of the fabric
+  remarks       String? // Comments/Remarks for internal notes
+  createdBy     String? // Audit: captured automatically
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  stockItems             StockItem[]
+  saleOrderItems         SaleOrderItem[]
+  requisitionItems       StockRequisitionItem[]
+  gatePassItems          GatePassItem[]
+  purchaseOrderItems     PurchaseOrderItem[]
+  grnItems               GRNItem[]
+  qualityInspectionItems QualityInspectionItem[]
+  productionOrderItems   ProductionOrderItem[]
+  materialIssueItems     MaterialIssueItem[]
+  materialReceiptItems   MaterialReceiptItem[]
+  receivingInvoiceItems  ReceivingInvoiceItem[]
+  createdByUser          User?                   @relation("ArticleCreatedBy", fields: [createdBy], references: [id])
+
+  @@map("articles")
+}
+
+model Location {
+  id            String       @id @default(cuid())
+  name          String
+  type          LocationType
+  address       String
+  ownershipType String       @default("own") // "own" or "vendor"
+  vendorId      String? // Reference to Supplier if ownershipType is "vendor"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  stockItems         StockItem[]
+  saleOrders         SaleOrder[]
+  fromRequisitions   StockRequisition[] @relation("FromLocation")
+  toRequisitions     StockRequisition[] @relation("ToLocation")
+  fromGatePasses     GatePass[]         @relation("GatePassFromLocation")
+  toGatePasses       GatePass[]         @relation("GatePassToLocation")
+  productionOrders   ProductionOrder[]
+  materialIssueFrom  MaterialIssue[]    @relation("MaterialIssueFromLocation")
+  materialReceiptTo  MaterialReceipt[]  @relation("MaterialReceiptToLocation")
+  vouchers           Voucher[]
+  customerWarehouses Customer[]         @relation("CustomerWarehouse")
+  grns               GRN[]              @relation("GRNWarehouse")
+  vendor             Supplier?          @relation("VendorWarehouse", fields: [vendorId], references: [id])
+
+  @@map("locations")
+}
+
+model StockItem {
+  id              String         @id @default(cuid())
+  articleId       String
+  locationId      String
+  quantity        Float
+  pricePerUnit    Float
+  stage           InventoryStage @default(FG)
+  batchNumber     String?
+  processId       String?
+  lotNo           String?
+  shade           String?
+  thanId          String?
+  meterEquivalent Float?
+  isLoose         Boolean        @default(false)
+  isCutPiece      Boolean        @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  article  Article  @relation(fields: [articleId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+
+  @@map("stock_items")
+}
+
+model SaleOrder {
+  id          String      @id @default(cuid())
+  orderNumber String      @unique
+  customerId  String
+  locationId  String
+  totalAmount Float
+  status      OrderStatus @default(pending)
+  paymentType PaymentType @default(credit)
+  createdBy   String
+  approvedBy  String?
+  approvedAt  DateTime?
+  gatePassId  String?
+  invoiceId   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  location       Location        @relation(fields: [locationId], references: [id])
+  createdByUser  User            @relation("SaleOrderCreatedBy", fields: [createdBy], references: [id])
+  approvedByUser User?           @relation("SaleOrderApprovedBy", fields: [approvedBy], references: [id])
+  items          SaleOrderItem[]
+  gatePass       GatePass?       @relation(fields: [gatePassId], references: [id])
+  invoice        Invoice?        @relation(fields: [invoiceId], references: [id])
+
+  @@map("sale_orders")
+}
+
+model SaleOrderItem {
+  id           String @id @default(cuid())
+  saleOrderId  String
+  articleId    String
+  quantity     Float
+  pricePerUnit Float
+  totalPrice   Float
+
+  // Relations
+  saleOrder SaleOrder @relation(fields: [saleOrderId], references: [id])
+  article   Article   @relation(fields: [articleId], references: [id])
+
+  @@map("sale_order_items")
+}
+
+model StockRequisition {
+  id                String            @id @default(cuid())
+  requisitionNumber String            @unique
+  requestedBy       String
+  fromLocationId    String
+  toLocationId      String
+  status            RequisitionStatus @default(requested)
+  approvedBy        String?
+  approvedAt        DateTime?
+  gatePassId        String?
+  notes             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  requestedByUser User                   @relation("RequisitionRequestedBy", fields: [requestedBy], references: [id])
+  approvedByUser  User?                  @relation("RequisitionApprovedBy", fields: [approvedBy], references: [id])
+  fromLocation    Location               @relation("FromLocation", fields: [fromLocationId], references: [id])
+  toLocation      Location               @relation("ToLocation", fields: [toLocationId], references: [id])
+  items           StockRequisitionItem[]
+  gatePass        GatePass?              @relation(fields: [gatePassId], references: [id])
+
+  @@map("stock_requisitions")
+}
+
+model StockRequisitionItem {
+  id            String @id @default(cuid())
+  requisitionId String
+  articleId     String
+  quantity      Float
+
+  // Relations
+  requisition StockRequisition @relation(fields: [requisitionId], references: [id])
+  article     Article          @relation(fields: [articleId], references: [id])
+
+  @@map("stock_requisition_items")
+}
+
+model GatePass {
+  id              String          @id @default(cuid())
+  gatePassNumber  String          @unique
+  saleOrderId     String?
+  requisitionId   String?
+  fromLocationId  String
+  toLocationId    String
+  status          GatePassStatus  @default(issued)
+  purpose         GatePassPurpose
+  vehicleNumber   String?
+  driverName      String?
+  driverContact   String?
+  receivedAt      DateTime?
+  receivedBy      String?
+  securityNotes   String?
+  verificationDoc String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  fromLocation Location           @relation("GatePassFromLocation", fields: [fromLocationId], references: [id])
+  toLocation   Location           @relation("GatePassToLocation", fields: [toLocationId], references: [id])
+  items        GatePassItem[]
+  saleOrders   SaleOrder[]
+  requisitions StockRequisition[]
+
+  @@map("gate_passes")
+}
+
+model GatePassItem {
+  id         String @id @default(cuid())
+  gatePassId String
+  articleId  String
+  quantity   Float
+
+  // Relations
+  gatePass GatePass @relation(fields: [gatePassId], references: [id])
+  article  Article  @relation(fields: [articleId], references: [id])
+
+  @@map("gate_pass_items")
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  saleOrderId   String?
+  customerId    String
+  totalAmount   Float
+  paidAmount    Float         @default(0)
+  balanceAmount Float
+  dueDate       DateTime
+  status        InvoiceStatus @default(unpaid)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  saleOrders SaleOrder[]
+
+  @@map("invoices")
+}
+
+model Supplier {
+  id            String         @id @default(cuid())
+  name          String
+  category      VendorCategory @default(supplier) // Vendor Category classification
+  contactPerson String
+  email         String?
+  phone         String
+  address       String
+  paymentTerms  Int
+  paymentMethod String? // cash | credit | cheque | bank_transfer | online
+  bankName      String?
+  accountNumber String?
+  accountTitle  String?
+  remarks       String? // Comments/Remarks
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  purchaseOrders    PurchaseOrder[]
+  grns              GRN[]
+  vendorLedger      VendorLedger[]
+  receivingInvoices ReceivingInvoice[]
+  warehouses        Location[]         @relation("VendorWarehouse")
+
+  @@map("suppliers")
+}
+
+model PurchaseOrder {
+  id                  String         @id @default(cuid())
+  poNumber            String         @unique
+  supplierId          String
+  totalAmount         Float
+  promiseDeliveryDays Int
+  status              PurchaseStatus @default(pending)
+  createdBy           String
+  approvedBy          String?
+  approvedAt          DateTime?
+  grnId               String?
+  notes               String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  supplier          Supplier            @relation(fields: [supplierId], references: [id])
+  createdByUser     User                @relation("PurchaseOrderCreatedBy", fields: [createdBy], references: [id])
+  approvedByUser    User?               @relation("PurchaseOrderApprovedBy", fields: [approvedBy], references: [id])
+  items             PurchaseOrderItem[]
+  grn               GRN?                @relation(fields: [grnId], references: [id])
+  receivingInvoices ReceivingInvoice[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id                   String    @id @default(cuid())
+  purchaseOrderId      String
+  articleId            String
+  quantity             Float
+  pricePerUnit         Float
+  totalPrice           Float
+  yarnCount            String? // Yarn count (e.g. 40pv 40 pv)
+  composition          String? // Composition (e.g. 80:20)
+  constraction         String?
+  width                String? // Width of the fabric
+  expectedDeliveryDate DateTime? // Expected delivery date for this item
+
+  // Relations
+  purchaseOrder     PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id])
+  article           Article            @relation(fields: [articleId], references: [id])
+  deliverySchedules DeliverySchedule[]
+
+  @@map("purchase_order_items")
+}
+
+model DeliverySchedule {
+  id                  String   @id @default(cuid())
+  purchaseOrderItemId String
+  quantity            Float
+  pickDate            DateTime
+
+  // Relations
+  purchaseOrderItem PurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("delivery_schedules")
+}
+
+model GRN {
+  id           String    @id @default(cuid())
+  grnNumber    String    @unique
+  poId         String
+  supplierId   String
+  warehouseId  String? // Warehouse where goods are being received
+  receivedBy   String
+  receivedAt   DateTime
+  status       GRNStatus @default(pending)
+  inspectionId String?
+  notes        String?
+  isInvoiced   Boolean   @default(false) // New field to track invoiced status
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  supplier       Supplier              @relation(fields: [supplierId], references: [id])
+  warehouse      Location?             @relation("GRNWarehouse", fields: [warehouseId], references: [id])
+  receivedByUser User                  @relation("GRNReceivedBy", fields: [receivedBy], references: [id])
+  items          GRNItem[]
+  inspection     QualityInspection?    @relation(fields: [inspectionId], references: [id])
+  purchaseOrders PurchaseOrder[]
+  invoiceGrns    ReceivingInvoiceGRN[]
+
+  @@map("grns")
+}
+
+model GRNItem {
+  id               String  @id @default(cuid())
+  grnId            String
+  articleId        String
+  orderedQuantity  Float
+  receivedQuantity Float
+  acceptedQuantity Float
+  rejectedQuantity Float
+  packages         Float? // Number of rolls/cones/packages received
+  unit             String? // Unit of measurement (e.g., meter, kg, piece)
+  lotNo            String? // Lot number of the received goods
+  remarks          String?
+
+  // Relations
+  grn     GRN     @relation(fields: [grnId], references: [id])
+  article Article @relation(fields: [articleId], references: [id])
+
+  @@map("grn_items")
+}
+
+model QualityInspection {
+  id               String        @id @default(cuid())
+  inspectionNumber String        @unique
+  grnId            String
+  inspectedBy      String
+  inspectedAt      DateTime
+  status           QualityStatus
+  overallRemarks   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  inspectedByUser User                    @relation("InspectedBy", fields: [inspectedBy], references: [id])
+  items           QualityInspectionItem[]
+  grns            GRN[]
+
+  @@map("quality_inspections")
+}
+
+model QualityInspectionItem {
+  id               String  @id @default(cuid())
+  inspectionId     String
+  articleId        String
+  receivedQuantity Float
+  acceptedQuantity Float
+  rejectedQuantity Float
+  reason           String?
+
+  // Relations
+  inspection QualityInspection @relation(fields: [inspectionId], references: [id])
+  article    Article           @relation(fields: [articleId], references: [id])
+
+  @@map("quality_inspection_items")
+}
+
+model Process {
+  id             String         @id @default(cuid())
+  name           String
+  stage          ProcessStage
+  wastagePercent Float
+  duration       Int // in hours
+  inputType      InventoryStage
+  outputType     InventoryStage
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  productionOrders ProductionOrder[]
+
+  @@map("processes")
+}
+
+model ProductionOrder {
+  id          String           @id @default(cuid())
+  orderNumber String           @unique
+  processId   String
+  status      ProductionStatus @default(draft)
+  createdBy   String
+  startedAt   DateTime?
+  completedAt DateTime?
+  locationId  String
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  process          Process               @relation(fields: [processId], references: [id])
+  createdByUser    User                  @relation("ProductionOrderCreatedBy", fields: [createdBy], references: [id])
+  location         Location              @relation(fields: [locationId], references: [id])
+  items            ProductionOrderItem[]
+  materialIssues   MaterialIssue[]
+  materialReceipts MaterialReceipt[]
+
+  @@map("production_orders")
+}
+
+model ProductionOrderItem {
+  id                String  @id @default(cuid())
+  productionOrderId String
+  articleId         String
+  inputQuantity     Float
+  expectedOutput    Float
+  actualOutput      Float?
+  wastageQuantity   Float?
+  outputArticleId   String?
+
+  // Relations
+  productionOrder ProductionOrder @relation(fields: [productionOrderId], references: [id])
+  article         Article         @relation(fields: [articleId], references: [id])
+
+  @@map("production_order_items")
+}
+
+model MaterialIssue {
+  id                String   @id @default(cuid())
+  issueNumber       String   @unique
+  productionOrderId String
+  issuedBy          String
+  issuedAt          DateTime
+  fromLocationId    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  productionOrder ProductionOrder     @relation(fields: [productionOrderId], references: [id])
+  issuedByUser    User                @relation("MaterialIssuedBy", fields: [issuedBy], references: [id])
+  fromLocation    Location            @relation("MaterialIssueFromLocation", fields: [fromLocationId], references: [id])
+  items           MaterialIssueItem[]
+
+  @@map("material_issues")
+}
+
+model MaterialIssueItem {
+  id              String         @id @default(cuid())
+  materialIssueId String
+  articleId       String
+  quantity        Float
+  stage           InventoryStage
+
+  // Relations
+  materialIssue MaterialIssue @relation(fields: [materialIssueId], references: [id])
+  article       Article       @relation(fields: [articleId], references: [id])
+
+  @@map("material_issue_items")
+}
+
+model MaterialReceipt {
+  id                String   @id @default(cuid())
+  receiptNumber     String   @unique
+  productionOrderId String
+  receivedBy        String
+  receivedAt        DateTime
+  toLocationId      String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  productionOrder ProductionOrder       @relation(fields: [productionOrderId], references: [id])
+  receivedByUser  User                  @relation("MaterialReceivedBy", fields: [receivedBy], references: [id])
+  toLocation      Location              @relation("MaterialReceiptToLocation", fields: [toLocationId], references: [id])
+  items           MaterialReceiptItem[]
+
+  @@map("material_receipts")
+}
+
+model MaterialReceiptItem {
+  id                String         @id @default(cuid())
+  materialReceiptId String
+  articleId         String
+  quantity          Float
+  stage             InventoryStage
+  wastageQuantity   Float
+
+  // Relations
+  materialReceipt MaterialReceipt @relation(fields: [materialReceiptId], references: [id])
+  article         Article         @relation(fields: [articleId], references: [id])
+
+  @@map("material_receipt_items")
+}
+
+// Dyeing and Production Flow Models
+model DyeingJob {
+  id           String          @id @default(cuid())
+  jobNumber    String          @unique
+  issueDate    DateTime
+  fromLocation String
+  dyeingHouse  String
+  workOrderNo  String
+  lotNo        String
+  quality      String
+  colour       String
+  greyThan     Float
+  greyMeters   Float
+  billNo       String?
+  notes        String?
+  status       DyeingJobStatus @default(issued)
+  createdBy    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  createdByUser  User            @relation("DyeingJobCreatedBy", fields: [createdBy], references: [id])
+  dyeingReceives DyeingReceive[]
+
+  @@map("dyeing_jobs")
+}
+
+model DyeingReceive {
+  id              String   @id @default(cuid())
+  receiveNumber   String   @unique
+  dyeingJobId     String
+  lotNo           String
+  receiveDate     DateTime
+  dyeingName      String
+  quality         String
+  colour          String
+  tiyarThan       Float
+  tiyarMeters     Float
+  shortageThan    Float
+  shortageMeters  Float
+  shortagePercent Float
+  billNo          String?
+  deliveryNoteNo  String?
+  attachments     String[]
+  notes           String?
+  createdBy       String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  dyeingJob     DyeingJob @relation(fields: [dyeingJobId], references: [id])
+  createdByUser User      @relation("DyeingReceiveCreatedBy", fields: [createdBy], references: [id])
+  lforms        LForm[]
+
+  @@map("dyeing_receives")
+}
+
+model LForm {
+  id              String      @id @default(cuid())
+  lformNumber     String      @unique
+  lotNo           String
+  dyeingReceiveId String
+  operationDate   DateTime
+  operator        String
+  totalThans      Float
+  totalMeters     Float
+  status          LFormStatus @default(draft)
+  finalizedBy     String?
+  finalizedAt     DateTime?
+  createdBy       String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  dyeingReceive   DyeingReceive @relation(fields: [dyeingReceiveId], references: [id])
+  createdByUser   User          @relation("LFormCreatedBy", fields: [createdBy], references: [id])
+  finalizedByUser User?         @relation("LFormFinalizedBy", fields: [finalizedBy], references: [id])
+  rows            LFormRow[]
+  vouchers        Voucher[]
+
+  @@map("l_forms")
+}
+
+model LFormRow {
+  id              String        @id @default(cuid())
+  rowNumber       Int
+  lformId         String
+  itemType        LFormItemType
+  thanId          String
+  shade           String
+  quality         String
+  thanLength      Float
+  meterEquivalent Float
+  remarks         String?
+
+  // Relations
+  lform LForm @relation(fields: [lformId], references: [id])
+
+  @@map("l_form_rows")
+}
+
+model Voucher {
+  id            String        @id @default(cuid())
+  voucherNumber String        @unique
+  voucherType   VoucherType
+  lotNo         String
+  lformId       String
+  transferDate  DateTime
+  warehouseId   String
+  totalThans    Float
+  totalMeters   Float
+  status        VoucherStatus @default(draft)
+  createdBy     String
+  approvedBy    String?
+  approvedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  lform          LForm         @relation(fields: [lformId], references: [id])
+  warehouse      Location      @relation(fields: [warehouseId], references: [id])
+  createdByUser  User          @relation("VoucherCreatedBy", fields: [createdBy], references: [id])
+  approvedByUser User?         @relation("VoucherApprovedBy", fields: [approvedBy], references: [id])
+  lines          VoucherLine[]
+
+  @@map("vouchers")
+}
+
+model VoucherLine {
+  id         String        @id @default(cuid())
+  lineNumber Int
+  voucherId  String
+  thanId     String?
+  shade      String
+  quality    String
+  thanCount  Int
+  meters     Float
+  itemType   LFormItemType
+  remarks    String?
+
+  // Relations
+  voucher Voucher @relation(fields: [voucherId], references: [id])
+
+  @@map("voucher_lines")
+}
+
+model VendorLedger {
+  id         String   @id @default(cuid())
+  supplierId String
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  entryType String // 'debit' or 'credit'
+  amount    Float
+  balance   Float // Running balance after this transaction
+
+  referenceType   String // 'receiving_invoice', 'payment', 'adjustment', 'opening_balance'
+  referenceId     String? // ID of related document
+  referenceNumber String? // PO/GRN/Invoice/Payment number for display
+
+  description String
+  date        DateTime
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("vendor_ledger")
+}
+
+model ReceivingInvoice {
+  id            String    @id @default(cuid())
+  invoiceNumber String    @unique
+  billNo        String? // Bill number from supplier
+  poId          String
+  supplierId    String
+  date          DateTime
+  dueDate       DateTime?
+  amount        Float // Subtotal before tax
+  taxAmount     Float     @default(0) // Total tax amount
+  totalAmount   Float // Grand total (amount + taxAmount)
+  paymentTerms  String? // 'cash' | 'credit' | 'cheque'
+  status        String    @default("pending") // 'pending' | 'paid' | 'partial'
+  paidAmount    Float     @default(0)
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  supplier      Supplier               @relation(fields: [supplierId], references: [id])
+  purchaseOrder PurchaseOrder          @relation(fields: [poId], references: [id])
+  items         ReceivingInvoiceItem[]
+  grnInvoices   ReceivingInvoiceGRN[]
+
+  @@map("receiving_invoices")
+}
+
+model ReceivingInvoiceGRN {
+  id                 String @id @default(cuid())
+  receivingInvoiceId String
+  grnId              String
+
+  // Relations
+  receivingInvoice ReceivingInvoice @relation(fields: [receivingInvoiceId], references: [id], onDelete: Cascade)
+  grn              GRN              @relation(fields: [grnId], references: [id], onDelete: Cascade)
+
+  @@unique([receivingInvoiceId, grnId])
+  @@map("receiving_invoice_grns")
+}
+
+model ReceivingInvoiceItem {
+  id                 String @id @default(cuid())
+  receivingInvoiceId String
+  articleId          String
+  quantity           Float
+  pricePerUnit       Float
+  totalPrice         Float // quantity * pricePerUnit (before tax)
+  taxPercent         Float? // Tax percentage (0-100)
+  taxAmount          Float  @default(0) // Calculated tax amount
+  lineTotal          Float // totalPrice + taxAmount
+
+  // Relations
+  receivingInvoice ReceivingInvoice @relation(fields: [receivingInvoiceId], references: [id], onDelete: Cascade)
+  article          Article          @relation(fields: [articleId], references: [id])
+
+  @@map("receiving_invoice_items")
+}
+
+// System Configuration
+model SystemConfig {
+  id       String @id @default(cuid())
+  key      String @unique
+  value    String
+  category String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_config")
+}

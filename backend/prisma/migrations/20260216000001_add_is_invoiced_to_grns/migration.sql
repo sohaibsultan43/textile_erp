@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "grns" ADD COLUMN IF NOT EXISTS "isInvoiced" BOOLEAN NOT NULL DEFAULT false;
