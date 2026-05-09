@@ -44,7 +44,8 @@ const toClientJob = (job) => {
     workOrderNo: job.workOrderNo,
     lotNo: job.lotNo,
     quality: job.quality,
-    colour: job.colour,
+    colour: job.colour || undefined,
+    colorCount: job.colorCount,
     greyThan: job.greyThan,
     greyMeters: job.greyMeters,
     attachmentUrl: notes.attachmentUrl,
@@ -139,7 +140,7 @@ const toClientVoucher = (voucher) => ({
   approvedAt: voucher.approvedAt || undefined,
 });
 
-router.get('/', authorize(['owner', 'warehouse', 'inventory_controller']), async (req, res) => {
+router.get('/', authorize(['owner', 'warehouse', 'inventory_controller', 'sales']), async (req, res) => {
   try {
     const [jobs, receives, lforms, vouchers] = await Promise.all([
       prisma.dyeingJob.findMany({ orderBy: { createdAt: 'desc' } }),
@@ -164,7 +165,7 @@ router.get('/', authorize(['owner', 'warehouse', 'inventory_controller']), async
   }
 });
 
-router.post('/jobs', authorize(['owner', 'warehouse', 'inventory_controller']), async (req, res) => {
+router.post('/jobs', authorize(['owner', 'warehouse', 'inventory_controller', 'sales']), async (req, res) => {
   try {
     const userId = req.user?.id;
     const payload = req.body;
@@ -177,7 +178,8 @@ router.post('/jobs', authorize(['owner', 'warehouse', 'inventory_controller']), 
         workOrderNo: payload.workOrderNo,
         lotNo: payload.lotNo,
         quality: payload.quality,
-        colour: payload.colour,
+        colour: payload.colour || null,
+        colorCount: Math.max(1, Number(payload.colorCount || 1)),
         greyThan: Number(payload.greyThan || 0),
         greyMeters: Number(payload.greyMeters || 0),
         status: payload.status || 'issued',
@@ -187,7 +189,7 @@ router.post('/jobs', authorize(['owner', 'warehouse', 'inventory_controller']), 
           deliverySchedules: payload.deliverySchedules || [],
           skipLForm: !!payload.skipLForm,
         }),
-        createdBy: userId,
+        createdByUser: { connect: { id: userId } },
       },
     });
     return sendSuccess(res, toClientJob(created), 'Dyeing job created successfully', 201);
@@ -197,7 +199,7 @@ router.post('/jobs', authorize(['owner', 'warehouse', 'inventory_controller']), 
   }
 });
 
-router.patch('/jobs/:id/status', authorize(['owner', 'warehouse', 'inventory_controller']), async (req, res) => {
+router.patch('/jobs/:id/status', authorize(['owner', 'warehouse', 'inventory_controller', 'sales']), async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -212,7 +214,7 @@ router.patch('/jobs/:id/status', authorize(['owner', 'warehouse', 'inventory_con
   }
 });
 
-router.delete('/jobs/:id', authorize(['owner', 'warehouse', 'inventory_controller']), async (req, res) => {
+router.delete('/jobs/:id', authorize(['owner', 'warehouse', 'inventory_controller', 'sales']), async (req, res) => {
   try {
     const { id } = req.params;
     await prisma.$transaction(async (tx) => {
@@ -247,14 +249,13 @@ router.delete('/jobs/:id', authorize(['owner', 'warehouse', 'inventory_controlle
   }
 });
 
-router.post('/receives', authorize(['owner', 'warehouse', 'inventory_controller']), async (req, res) => {
+router.post('/receives', authorize(['owner', 'warehouse', 'inventory_controller', 'sales']), async (req, res) => {
   try {
     const userId = req.user?.id;
     const payload = req.body;
     const created = await prisma.dyeingReceive.create({
       data: {
         receiveNumber: payload.receiveNumber,
-        dyeingJobId: payload.dyeingJobId,
         lotNo: payload.lotNo,
         receiveDate: new Date(payload.receiveDate),
         dyeingName: payload.dyeingName,
@@ -271,7 +272,8 @@ router.post('/receives', authorize(['owner', 'warehouse', 'inventory_controller'
           thanDetails: payload.thanDetails || [],
           scheduledDeliveryDate: payload.scheduledDeliveryDate || null,
         }),
-        createdBy: userId,
+        dyeingJob: { connect: { id: payload.dyeingJobId } },
+        createdByUser: { connect: { id: userId } },
       },
     });
     return sendSuccess(res, toClientReceive(created), 'Dyeing receive created successfully', 201);
@@ -281,7 +283,9 @@ router.post('/receives', authorize(['owner', 'warehouse', 'inventory_controller'
   }
 });
 
-router.post('/lforms', authorize(['owner', 'warehouse', 'inventory_controller']), async (req, res) => {
+// L-Form creation endpoint
+router.post('/lforms', authorize(['owner', 'warehouse', 'inventory_controller', 'sales']), async (req, res) => {
+  console.log('L-Form creation request received');
   try {
     const userId = req.user?.id;
     const payload = req.body;
@@ -289,15 +293,15 @@ router.post('/lforms', authorize(['owner', 'warehouse', 'inventory_controller'])
       data: {
         lformNumber: payload.lformNumber,
         lotNo: payload.lotNo,
-        dyeingReceiveId: payload.dyeingReceiveId,
+        dyeingReceive: { connect: { id: payload.dyeingReceiveId } },
         operationDate: new Date(payload.operationDate),
         operator: payload.operator,
         totalThans: Number(payload.totalThans || 0),
         totalMeters: Number(payload.totalMeters || 0),
         status: payload.status || 'draft',
-        finalizedBy: payload.status === 'finalized' ? userId : null,
         finalizedAt: payload.status === 'finalized' ? new Date() : null,
-        createdBy: userId,
+        createdByUser: { connect: { id: userId } },
+        ...(payload.status === 'finalized' && { finalizedByUser: { connect: { id: userId } } }),
         rows: {
           create: (payload.rows || []).map((row) => ({
             rowNumber: row.rowNumber,
@@ -320,7 +324,7 @@ router.post('/lforms', authorize(['owner', 'warehouse', 'inventory_controller'])
   }
 });
 
-router.post('/vouchers', authorize(['owner', 'warehouse', 'inventory_controller']), async (req, res) => {
+router.post('/vouchers', authorize(['owner', 'warehouse', 'inventory_controller', 'sales']), async (req, res) => {
   try {
     const userId = req.user?.id;
     const payload = req.body;
@@ -335,7 +339,7 @@ router.post('/vouchers', authorize(['owner', 'warehouse', 'inventory_controller'
         totalThans: Number(payload.totalThans || 0),
         totalMeters: Number(payload.totalMeters || 0),
         status: payload.status || 'draft',
-        createdBy: userId,
+        createdByUser: { connect: { id: userId } },
         approvedBy: payload.approvedBy || null,
         approvedAt: payload.approvedAt ? new Date(payload.approvedAt) : null,
         lines: {

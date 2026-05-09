@@ -13,7 +13,7 @@ export const dyeingFlowApi = {
     return apiRequest<DyeingFlowData>('/api/dyeing-flow');
   },
 
-  createJob: async (payload: DyeingJob): Promise<DyeingJob> => {
+  createJob: async (payload: Partial<DyeingJob>): Promise<DyeingJob> => {
     return apiRequest<DyeingJob>('/api/dyeing-flow/jobs', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -40,7 +40,7 @@ export const dyeingFlowApi = {
     });
   },
 
-  createLForm: async (payload: LForm): Promise<LForm> => {
+  createLForm: async (payload: Partial<LForm>): Promise<LForm> => {
     return apiRequest<LForm>('/api/dyeing-flow/lforms', {
       method: 'POST',
       body: JSON.stringify(payload),

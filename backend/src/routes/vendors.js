@@ -67,7 +67,7 @@ const checkValidation = (req, res) => {
 // @route   GET /api/vendors
 // @desc    Get all vendors
 // @access  Private
-router.get('/', authorize(['owner', 'purchase_officer', 'finance']), async (req, res) => {
+router.get('/', authorize(['owner', 'purchase_officer', 'finance', 'warehouse', 'inventory_controller', 'sales']), async (req, res) => {
   try {
     const vendors = await prisma.supplier.findMany({
       orderBy: {
@@ -85,7 +85,7 @@ router.get('/', authorize(['owner', 'purchase_officer', 'finance']), async (req,
 // @route   GET /api/vendors/:id
 // @desc    Get vendor by ID
 // @access  Private
-router.get('/:id', authorize(['owner', 'purchase_officer', 'finance']), async (req, res) => {
+router.get('/:id', authorize(['owner', 'purchase_officer', 'finance', 'warehouse', 'inventory_controller', 'sales']), async (req, res) => {
   try {
     const { id } = req.params;
 

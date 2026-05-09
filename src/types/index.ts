@@ -433,7 +433,8 @@ export interface DyeingJob {
   workOrderNo: string;
   lotNo: string;
   quality: string;
-  colour: string;
+  colour?: string;
+  colorCount: number;
   greyThan: number;
   greyMeters: number;
   scheduledDeliveryDate?: string;

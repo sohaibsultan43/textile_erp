@@ -812,7 +812,8 @@ model DyeingJob {
   workOrderNo  String
   lotNo        String
   quality      String
-  colour       String
+  colour       String?
+  colorCount   Int             @default(1)
   greyThan     Float
   greyMeters   Float
   billNo       String?

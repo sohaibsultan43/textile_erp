@@ -1,0 +1,5 @@
+ALTER TABLE "dyeing_jobs"
+ADD COLUMN "colorCount" INTEGER NOT NULL DEFAULT 1;
+
+ALTER TABLE "dyeing_jobs"
+ALTER COLUMN "colour" DROP NOT NULL;

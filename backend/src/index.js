@@ -120,8 +120,14 @@ app.use('/api/receiving-invoices', authMiddleware, receivingInvoiceRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/dyeing-flow', authMiddleware, dyeingFlowRoutes);
 
-// Static routing for document uploads
-app.use('/doc', express.static(path.join(__dirname, '../doc')));
+// Static routing for document uploads (with CORS headers)
+app.use('/doc', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  console.log(`[Static] Serving: ${req.path}`);
+  next();
+}, express.static(path.join(__dirname, '../doc')));
 
 // 404 handler
 app.use('*', (req, res) => {

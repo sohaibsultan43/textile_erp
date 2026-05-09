@@ -17,8 +17,8 @@ import { AppDatePicker } from '@/components/ui/app-date-picker';
 import { cn, formatDate } from '@/lib/utils';
 import { dyeingFlowApi, locationApi, vendorApi, stockApi } from '@/lib/api';
 import { getApiBaseUrl, getAuthToken } from '@/lib/auth';
-import { DyeingJob, DyeingReceive, LForm, LFormRow, Voucher, VoucherLine, Location, LFormItemType, Supplier, DeliverySchedule } from '@/types';
-import { Plus, Printer, Download, Check, X, ArrowRight, Trash2, ChevronDown, ChevronUp, Eye, ChevronsUpDown, Square, CheckSquare, AlertTriangle } from 'lucide-react';
+import { DyeingJob, DyeingReceive, LForm, LFormRow, Voucher, Location, Supplier } from '@/types';
+import { Plus, Printer, Download, Check, X, Trash2, Eye, ChevronsUpDown, Square, CheckSquare, AlertTriangle, Scissors, Package } from 'lucide-react';
 import { COLOR_OPTIONS } from '@/lib/constants';
 
 const makeIssueLineId = () =>
@@ -36,12 +36,6 @@ type SourceLotLine = {
   usedThans?: number;
   usedMeters: number;
   skipLForm: boolean;
-};
-type ColorJobLine = {
-  id: string;
-  colour: string;
-  greyMeters: number;
-  deliverySchedules: DeliverySchedule[];
 };
 
 const EMPTY_LOT_SELECT = '__none__';
@@ -67,9 +61,9 @@ const formatReedPickLine = (article?: {
 /**
  * Detailed read-only view for a Dyeing Job or a Dyeing Receive record.
  */
-const DyeingDetailsView = ({ isOpen, onOpenChange, item }: { 
-  isOpen: boolean; 
-  onOpenChange: (open: boolean) => void; 
+const DyeingDetailsView = ({ isOpen, onOpenChange, item }: {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
   item: DyeingJob | DyeingReceive | null;
 }) => {
   if (!item) return null;
@@ -105,8 +99,10 @@ const DyeingDetailsView = ({ isOpen, onOpenChange, item }: {
               <p className="text-sm font-semibold truncate" title={item.quality}>{item.quality}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[10px] uppercase font-bold text-muted-foreground">Colour</p>
-              <p className="text-sm font-semibold">{item.colour}</p>
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">{isJob ? 'Colors' : 'Colour'}</p>
+              <p className="text-sm font-semibold">
+                {isJob ? `${(item as DyeingJob).colorCount}` : (item as DyeingReceive).colour}
+              </p>
             </div>
           </div>
 
@@ -140,33 +136,15 @@ const DyeingDetailsView = ({ isOpen, onOpenChange, item }: {
                   </div>
                 </div>
 
-                {/* Delivery Schedule */}
+                {/* Work Order Meta */}
                 <div className="space-y-3">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-2">
                     <div className="w-1 h-3 bg-primary rounded-full" />
-                    Target Delivery Schedule
+                    Work Order Meta
                   </h4>
-                  <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader className="bg-muted/50">
-                        <TableRow className="h-8">
-                          <TableHead className="text-[10px] uppercase font-bold">Planned Date</TableHead>
-                          <TableHead className="text-[10px] uppercase font-bold text-right px-4">Planned Qty</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(item as DyeingJob).deliverySchedules?.length ? (item as DyeingJob).deliverySchedules?.map((sch, i) => (
-                          <TableRow key={i} className="h-9">
-                            <TableCell className="text-xs">{formatDate(sch.pickDate)}</TableCell>
-                            <TableCell className="text-xs text-right px-4 font-bold">{sch.quantity.toFixed(2)}m</TableCell>
-                          </TableRow>
-                        )) : (
-                          <TableRow>
-                            <TableCell colSpan={2} className="text-center text-xs text-muted-foreground py-4 italic">No schedule defined</TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
+                  <div className="border rounded-lg p-4 bg-muted/5">
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Color Count</p>
+                    <p className="text-base font-semibold">{(item as DyeingJob).colorCount}</p>
                   </div>
                 </div>
               </div>
@@ -175,6 +153,55 @@ const DyeingDetailsView = ({ isOpen, onOpenChange, item }: {
                 <span className="text-xs font-bold uppercase text-primary/70">Total Issued Volume</span>
                 <span className="text-lg font-black text-primary">{(item as DyeingJob).greyMeters.toFixed(2)} Meters</span>
               </div>
+
+              {/* Attachment Preview */}
+              {(item as DyeingJob).attachmentUrl && (
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-2">
+                    <div className="w-1 h-3 bg-primary rounded-full" />
+                    Attached Document
+                  </h4>
+                  <div className="border rounded-lg overflow-hidden bg-white">
+                    {(item as DyeingJob).attachmentUrl?.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                      <div className="p-4">
+                        <img 
+                          src={`${getApiBaseUrl()}${(item as DyeingJob).attachmentUrl}`}
+                          alt="Work Order Attachment"
+                          className="w-full h-auto max-h-[500px] object-contain mx-auto"
+                          crossOrigin="anonymous"
+                        />
+                        <div className="mt-2 text-center">
+                          <a 
+                            href={`${getApiBaseUrl()}${(item as DyeingJob).attachmentUrl}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary hover:underline"
+                          >
+                            Open in new tab: {(item as DyeingJob).attachmentUrl?.split('/').pop()}
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-6 text-center">
+                        <a 
+                          href={`${getApiBaseUrl()}${(item as DyeingJob).attachmentUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-primary hover:underline font-semibold"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          View Attached Document
+                        </a>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {(item as DyeingJob).attachmentUrl?.split('/').pop()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             /* RECEIVING VIEW */
@@ -264,8 +291,6 @@ export const DyeingProductionModule = () => {
   const [dyeingReceives, setDyeingReceives] = useState<DyeingReceive[]>([]);
   const [lforms, setLforms] = useState<LForm[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
-  const [expandedScheduleItems, setExpandedScheduleItems] = useState<Set<string>>(new Set());
-  const [expandedRecentJobs, setExpandedRecentJobs] = useState<Set<string>>(new Set());
 
   // View state
   const [viewItem, setViewItem] = useState<DyeingJob | DyeingReceive | null>(null);
@@ -276,6 +301,7 @@ export const DyeingProductionModule = () => {
     fromLocation: '',
     dyeingHouse: '',
     workOrderNo: '',
+    colorCount: '1',
     notes: '',
     attachmentUrl: ''
   });
@@ -290,15 +316,7 @@ export const DyeingProductionModule = () => {
       availableMeters: 0,
       usedThans: 0,
       usedMeters: 0,
-    },
-  ]);
-
-  const [colorLines, setColorLines] = useState<ColorJobLine[]>(() => [
-    {
-      id: makeIssueLineId(),
-      colour: '',
-      greyMeters: 0,
-      deliverySchedules: [],
+      skipLForm: false,
     },
   ]);
 
@@ -311,9 +329,8 @@ export const DyeingProductionModule = () => {
     tiyarThan: '',
     tiyarMeters: '',
     notes: '',
-    thanLines: [] as { id: string; meters: number }[]
+    thanLines: [] as { id: string; meters: number; isFaulty?: boolean }[]
   });
-  const [lotSearchTerm, setLotSearchTerm] = useState('');
   const [selectedReceiveJobIds, setSelectedReceiveJobIds] = useState<string[]>([]);
   const [openJobCombo, setOpenJobCombo] = useState(false);
   const [openReceiveCombo, setOpenReceiveCombo] = useState(false);
@@ -321,22 +338,28 @@ export const DyeingProductionModule = () => {
     dyeingReceiveId: '',
     operationDate: new Date().toISOString().split('T')[0],
     operator: '',
-    thanLines: [] as { 
-      id: string; 
-      meters: number; 
-      placeholderMeters?: number;
-      isFaulty?: boolean;
-      pieceType: 'loose' | 'grade_b' | 'cut_piece';
+    colorGroups: [] as {
+      id: string;
+      colorName: string;
+      thanCount: number;
+      thanLines: {
+        id: string;
+        meters: number;
+        placeholderMeters?: number;
+        isFaulty?: boolean;
+        pieceType: 'loose' | 'grade_b' | 'cut_piece';
+      }[];
     }[]
   });
 
-  // Voucher State
-  const [voucherState, setVoucherState] = useState({
-    lformId: '',
-    transferDate: new Date().toISOString().split('T')[0],
-    warehouseId: '',
-    voucherType: 'bulk' as 'bulk' | 'loose'
-  });
+  // Cutting & Packing State
+  const [cuttingBatches, setCuttingBatches] = useState<any[]>([]);
+  const [packingBatches, setPackingBatches] = useState<any[]>([]);
+
+  const [isCuttingDialogOpen, setIsCuttingDialogOpen] = useState(false);
+  const [isPackingDialogOpen, setIsPackingDialogOpen] = useState(false);
+  const [cuttingBundles, setCuttingBundles] = useState<any[]>([]);
+  const [packingSelectedBundles, setPackingSelectedBundles] = useState<any[]>([]);
 
   /** Warehouses linked to the selected dyeing vendor only (issue-from grey stock). */
   const vendorWarehousesForIssue = useMemo(() => {
@@ -476,14 +499,7 @@ export const DyeingProductionModule = () => {
         availableMeters: 0,
         usedThans: 0,
         usedMeters: 0,
-      },
-    ]);
-    setColorLines([
-      {
-        id: makeIssueLineId(),
-        colour: '',
-        greyMeters: 0,
-        deliverySchedules: [],
+        skipLForm: false,
       },
     ]);
   }, [issueForm.fromLocation]);
@@ -495,97 +511,6 @@ export const DyeingProductionModule = () => {
     return availableLots.filter((l) => !selectedElsewhere.has(l.lotNo));
   };
 
-  const getScheduledQuantityDyeing = (line: ColorJobLine): number => {
-    return line.deliverySchedules?.reduce((sum, s) => sum + (s.quantity || 0), 0) || 0;
-  };
-
-  const toggleScheduleExpansionDyeing = (id: string) => {
-    setExpandedScheduleItems((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const addScheduleRowDyeing = (colorLineId: string) => {
-    setColorLines((lines) =>
-      lines.map((line) => {
-        if (line.id !== colorLineId) return line;
-        
-        const scheduledQty = getScheduledQuantityDyeing(line);
-        if (scheduledQty >= line.greyMeters) {
-          toast({
-            title: 'Fullly Scheduled',
-            description: 'Total scheduled quantity already matches color quantity.',
-          });
-          return line;
-        }
-
-        const newSchedule: DeliverySchedule = {
-          id: `sch-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-          purchaseOrderItemId: colorLineId,
-          quantity: Math.max(0, line.greyMeters - scheduledQty),
-          pickDate: new Date().toISOString().split('T')[0],
-        };
-        
-        return {
-          ...line,
-          deliverySchedules: [...(line.deliverySchedules || []), newSchedule],
-        };
-      })
-    );
-    
-    setExpandedScheduleItems(prev => new Set(prev).add(colorLineId));
-  };
-
-  const removeScheduleRowDyeing = (colorLineId: string, scheduleId: string) => {
-    setColorLines((lines) =>
-      lines.map((line) => {
-        if (line.id !== colorLineId) return line;
-        return {
-          ...line,
-          deliverySchedules: (line.deliverySchedules || []).filter((s) => s.id !== scheduleId),
-        };
-      })
-    );
-  };
-
-  const updateScheduleRowDyeing = (
-    colorLineId: string,
-    scheduleId: string,
-    field: 'quantity' | 'pickDate',
-    value: any
-  ) => {
-    setColorLines((lines) =>
-      lines.map((line) => {
-        if (line.id !== colorLineId) return line;
-        
-        return {
-          ...line,
-          deliverySchedules: (line.deliverySchedules || []).map((s) => {
-            if (s.id !== scheduleId) return s;
-            
-            if (field === 'quantity') {
-              const otherSchedulesTotal = getScheduledQuantityDyeing(line) - (s.quantity || 0);
-              const remaining = Math.max(0, line.greyMeters - otherSchedulesTotal);
-              const nextVal = Math.min(Number(value) || 0, remaining);
-              
-              if (Number(value) > remaining) {
-                toast({
-                  title: 'Limit Exceeded',
-                  description: `Maximum remaining for this color is ${remaining}m`,
-                });
-              }
-              return { ...s, quantity: nextVal };
-            }
-            
-            return { ...s, [field]: value };
-          }),
-        };
-      })
-    );
-  };
 
   // Source Lot Handlers
   const addSourceLotLine = () => {
@@ -632,47 +557,47 @@ export const DyeingProductionModule = () => {
     setSourceLots(prev => prev.map(l => l.id === id ? { ...l, usedThans: thans } : l));
   };
 
-  // Color Job Handlers
-  const addColorLine = () => {
-    setColorLines(prev => [...prev, {
-      id: makeIssueLineId(),
-      colour: '',
-      greyMeters: 0,
-      skipLForm: false,
-      deliverySchedules: [],
-    }]);
-  };
-
-  const removeColorLine = (id: string) => {
-    setColorLines(prev => prev.length > 1 ? prev.filter(l => l.id !== id) : prev);
-  };
-
-  const updateColorLine = (id: string, patch: Partial<ColorJobLine>) => {
-    setColorLines(prev => prev.map(l => l.id === id ? { ...l, ...patch } : l));
-  };
-
   const loadData = async () => {
+    // Load locations and vendors first (critical for form to work)
     try {
       const [apiLocations, apiVendors] = await Promise.all([
         locationApi.getAll(),
         vendorApi.getAll(),
       ]);
-      // All storage / warehouse locations (exclude sale points for grey issue-from)
+      
       setLocations(
         apiLocations.filter(
           (loc) => loc.type === 'godown' || loc.type === 'warehouse'
         )
       );
-      setDyeingVendors(apiVendors.filter(vendor => vendor.category === 'dyeing'));
+      
+      const dyeingOnly = apiVendors.filter(vendor => vendor.category === 'dyeing');
+      setDyeingVendors(dyeingOnly);
+      
+      console.log('[DyeingModule] Locations & Vendors loaded successfully');
+      console.log('[DyeingModule] Dyeing vendors:', dyeingOnly.length);
+    } catch (error) {
+      console.error('[DyeingModule] Error loading locations/vendors:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load vendors and locations',
+        variant: 'destructive',
+      });
+      setLocations([]);
+      setDyeingVendors([]);
+    }
+    
+    // Load dyeing flow data separately (non-critical, don't block form)
+    try {
       const flowData = await dyeingFlowApi.getAll();
       setDyeingJobs(flowData.jobs || []);
       setDyeingReceives(flowData.receives || []);
       setLforms(flowData.lforms || []);
       setVouchers(flowData.vouchers || []);
+      console.log('[DyeingModule] Dyeing flow data loaded successfully');
     } catch (error) {
-      console.error('Error loading data:', error);
-      setLocations([]);
-      setDyeingVendors([]);
+      console.error('[DyeingModule] Error loading dyeing flow data:', error);
+      // Don't show error toast for flow data - just log it
       setDyeingJobs([]);
       setDyeingReceives([]);
       setLforms([]);
@@ -684,24 +609,33 @@ export const DyeingProductionModule = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!issueForm.workOrderNo) {
+      toast({ 
+        title: 'Error', 
+        description: 'Work order number not generated yet. Please select a date first.', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
     try {
       setIsUploading(true);
       const token = getAuthToken();
       const formData = new FormData();
       formData.append('file', file);
-      
-      const res = await fetch(`${getApiBaseUrl()}/api/upload`, {
+
+      const res = await fetch(`${getApiBaseUrl()}/api/upload?workOrderNo=${encodeURIComponent(issueForm.workOrderNo)}`, {
         method: 'POST',
         headers: {
           ...(token && { Authorization: `Bearer ${token}` }),
         },
         body: formData,
       });
-      
+
       if (!res.ok) throw new Error('Upload failed');
       const payload = await res.json();
       if (!payload.success) throw new Error(payload.error || 'Upload failed');
-      
+
       setIssueForm(prev => ({ ...prev, attachmentUrl: payload.data.url }));
       toast({ title: 'Success', description: 'File uploaded successfully' });
     } catch (error) {
@@ -723,8 +657,16 @@ export const DyeingProductionModule = () => {
       return;
     }
 
+    if (!issueForm.attachmentUrl) {
+      toast({
+        title: "Validation Error",
+        description: "Please upload an attachment (Picture/Document) before submitting",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const validSources = sourceLots.filter(l => l.lotNo && l.usedMeters > 0);
-    const validColors = colorLines.filter(l => l.colour && l.greyMeters > 0);
 
     if (validSources.length === 0) {
       toast({
@@ -735,37 +677,15 @@ export const DyeingProductionModule = () => {
       return;
     }
 
-    if (validColors.length === 0) {
-      toast({
-        title: "Validation Error",
-        description: "Add at least one target color with grey meters",
-        variant: "destructive"
-      });
-      return;
-    }
-
     const totalSource = validSources.reduce((sum, l) => sum + l.usedMeters, 0);
     const totalSourceThan = validSources.reduce((sum, l) => sum + (l.usedThans || 0), 0);
-    const totalColor = validColors.reduce((sum, c) => sum + c.greyMeters, 0);
     const globalSkipLForm = validSources.some(l => l.skipLForm);
-
-    // Allowing very small (0.01) floating point difference
-    if (Math.abs(totalSource - totalColor) > 0.01) {
-      const isExceeded = totalColor > totalSource + 0.01;
-      toast({
-        title: isExceeded ? "Quantity Limit Exceeded" : "Quantity Mismatch",
-        description: isExceeded 
-          ? `Target dyeing total (${totalColor.toFixed(2)}m) cannot exceed available Source Pool (${totalSource.toFixed(2)}m).`
-          : `Total Source (${totalSource.toFixed(2)}m) must match Total Color (${totalColor.toFixed(2)}m).`,
-        variant: "destructive"
-      });
-      return;
-    }
+    const colorCount = Math.max(1, Number(issueForm.colorCount) || 1);
 
     // Quality check (Warning)
     const qualities = new Set(validSources.map(l => l.quality));
     if (qualities.size > 1) {
-       if (!window.confirm("Warning: Multiple distinct qualities found in source lots. Proceed anyway?")) return;
+      if (!window.confirm("Warning: Multiple distinct qualities found in source lots. Proceed anyway?")) return;
     }
 
     const normalizedIssueDate = toDateOnly(issueForm.issueDate);
@@ -777,7 +697,7 @@ export const DyeingProductionModule = () => {
       return seq > max ? seq : max;
     }, 0);
     const generatedWorkOrderNo = `WO-${compactDate}-${String(maxSequence + 1).padStart(3, '0')}`;
-    
+
     const baseTime = Date.now();
     const joinedLots = validSources.map(l => l.lotNo).join(', ');
     const sharedQuality = validSources[0].quality;
@@ -788,31 +708,28 @@ export const DyeingProductionModule = () => {
     }));
 
     try {
-      const createPromises = validColors.map((colorLine, index) => {
-        const newJob: DyeingJob = {
-          id: `${baseTime}-${index}-${colorLine.colour}`,
-          jobNumber: `DJ-${baseTime}-${index}`,
-          issueDate: issueForm.issueDate,
-          fromLocation: issueForm.fromLocation,
-          dyeingHouse: issueForm.dyeingHouse,
-          workOrderNo: generatedWorkOrderNo, // Shared work order for the batch
-          lotNo: joinedLots, // Combined string for visibility in lists
-          quality: sharedQuality,
-          colour: colorLine.colour,
-          greyThan: totalSourceThan,
-          greyMeters: colorLine.greyMeters,
-          skipLForm: globalSkipLForm,
-          deliverySchedules: colorLine.deliverySchedules || [],
-          sourceLots: structuredSources,
-          attachmentUrl: issueForm.attachmentUrl,
-          notes: issueForm.notes,
-          status: 'issued',
-          createdBy: 'current_user',
-          createdAt: new Date().toISOString()
-        };
-        return dyeingFlowApi.createJob(newJob);
-      });
-      await Promise.all(createPromises);
+      const newJob: DyeingJob = {
+        id: `${baseTime}-${generatedWorkOrderNo}`,
+        jobNumber: `DJ-${baseTime}`,
+        issueDate: issueForm.issueDate,
+        fromLocation: issueForm.fromLocation,
+        dyeingHouse: issueForm.dyeingHouse,
+        workOrderNo: generatedWorkOrderNo,
+        lotNo: joinedLots,
+        quality: sharedQuality,
+        colour: undefined,
+        colorCount,
+        greyThan: totalSourceThan,
+        greyMeters: totalSource,
+        skipLForm: globalSkipLForm,
+        sourceLots: structuredSources,
+        attachmentUrl: issueForm.attachmentUrl,
+        notes: issueForm.notes,
+        status: 'issued',
+        createdBy: 'current_user',
+        createdAt: new Date().toISOString()
+      };
+      await dyeingFlowApi.createJob(newJob);
     } catch (error) {
       console.error('Create dyeing jobs error:', error);
       toast({
@@ -825,7 +742,7 @@ export const DyeingProductionModule = () => {
 
     toast({
       title: "Success",
-      description: `Issued ${totalColor.toFixed(2)}m from ${validSources.length} lot(s) for ${validColors.length} color(s).`
+      description: `Issued ${totalSource.toFixed(2)}m from ${validSources.length} lot(s) for ${colorCount} color(s).`
     });
 
     setIsIssueDialogOpen(false);
@@ -835,6 +752,7 @@ export const DyeingProductionModule = () => {
       fromLocation: '',
       dyeingHouse: '',
       workOrderNo: '',
+      colorCount: '1',
       notes: '',
       attachmentUrl: ''
     });
@@ -848,15 +766,7 @@ export const DyeingProductionModule = () => {
         availableMeters: 0,
         usedThans: 0,
         usedMeters: 0,
-      },
-    ]);
-    setColorLines([
-      {
-        id: makeIssueLineId(),
-        colour: '',
-        greyMeters: 0,
         skipLForm: false,
-        deliverySchedules: [],
       },
     ]);
     setSelectedDyeingVendorId('');
@@ -887,7 +797,6 @@ export const DyeingProductionModule = () => {
 
     setReceiveForm((prev) => (prev.dyeingJobId === job.id ? { ...prev, dyeingJobId: '' } : prev));
     setLformState((prev) => ({ ...prev, dyeingReceiveId: '', thanLines: [] }));
-    setVoucherState((prev) => ({ ...prev, lformId: '', warehouseId: '' }));
 
     toast({
       title: 'Removed',
@@ -1013,7 +922,7 @@ export const DyeingProductionModule = () => {
         receiveDate: receiveForm.receiveDate,
         dyeingName: allocatedJob.dyeingHouse,
         quality: allocatedJob.quality,
-        colour: allocatedJob.colour,
+        colour: allocatedJob.colour || `MIXED (${allocatedJob.colorCount})`,
         tiyarThan: Number(allocatedThans.toFixed(2)),
         tiyarMeters: Number(allocatedMeters.toFixed(2)),
         shortageThan: Number(jobShortageThans.toFixed(2)),
@@ -1030,7 +939,27 @@ export const DyeingProductionModule = () => {
 
     try {
       await Promise.all(receivesToCreate.map((payload) => dyeingFlowApi.createReceive(payload)));
-      await Promise.all(contextJobs.map((contextJob) => dyeingFlowApi.updateJobStatus(contextJob.id, 'received')));
+
+      // Keep partially received jobs selectable for subsequent receives.
+      const nextStatusByJob = new Map<string, DyeingJob['status']>();
+      contextJobs.forEach((contextJob) => {
+        const alreadyReceivedMeters = dyeingReceives
+          .filter((r) => r.dyeingJobId === contextJob.id)
+          .reduce((sum, r) => sum + (Number(r.tiyarMeters) || 0), 0);
+        const newlyReceivedMeters = receivesToCreate
+          .filter((r) => r.dyeingJobId === contextJob.id)
+          .reduce((sum, r) => sum + (Number(r.tiyarMeters) || 0), 0);
+        const totalReceivedMeters = alreadyReceivedMeters + newlyReceivedMeters;
+        const issuedMeters = Number(contextJob.greyMeters) || 0;
+        const isFullyReceived = totalReceivedMeters >= issuedMeters - 0.01;
+        nextStatusByJob.set(contextJob.id, isFullyReceived ? 'received' : 'in_dyeing');
+      });
+
+      await Promise.all(
+        Array.from(nextStatusByJob.entries()).map(([jobId, nextStatus]) =>
+          dyeingFlowApi.updateJobStatus(jobId, nextStatus)
+        )
+      );
     } catch (error) {
       console.error('Create dyeing receive error:', error);
       toast({
@@ -1070,10 +999,10 @@ export const DyeingProductionModule = () => {
 
   // Save L-Form
   const saveLForm = async (finalize: boolean = false) => {
-    if (!lformState.dyeingReceiveId || !lformState.operator || lformState.thanLines.length === 0) {
+    if (!lformState.dyeingReceiveId || !lformState.operator || lformState.colorGroups.length === 0) {
       toast({
         title: "Validation Error",
-        description: "Please fill all required fields and complete the Received Than Entry.",
+        description: "Please fill all required fields and add at least one color group.",
         variant: "destructive"
       });
       return;
@@ -1082,25 +1011,42 @@ export const DyeingProductionModule = () => {
     const receive = dyeingReceives.find(r => r.id === lformState.dyeingReceiveId);
     if (!receive) return;
 
-    const totalMeters = lformState.thanLines.reduce((sum, line) => sum + (line.meters || line.placeholderMeters || 0), 0);
+    // Flatten all thanLines from all color groups
+    const allThanLines = lformState.colorGroups.flatMap(group => 
+      group.thanLines.map(line => ({ ...line, colorName: group.colorName }))
+    );
 
-    if (totalMeters > receive.tiyarMeters) {
+    const totalMeters = allThanLines.reduce((sum, line) => sum + (line.meters || 0), 0);
+    const totalThans = allThanLines.length;
+
+    // Validate totals match received amounts
+    if (Math.abs(totalMeters - receive.tiyarMeters) > 0.5) {
       toast({
-        title: "Excess Meters Warning",
-        description: `Total meters (${totalMeters.toFixed(2)}) exceeds Tiyar meters (${receive.tiyarMeters.toFixed(2)}). This will be recorded as excess production.`,
-        variant: "default"
+        title: "Meter Mismatch",
+        description: `Total meters (${totalMeters.toFixed(2)} M) must equal received meters (${receive.tiyarMeters.toFixed(2)} M). Difference: ${Math.abs(totalMeters - receive.tiyarMeters).toFixed(2)} M`,
+        variant: "destructive"
       });
+      return;
     }
 
-    const rows: LFormRow[] = lformState.thanLines.map((line, idx) => ({
+    if (totalThans !== receive.tiyarThan) {
+      toast({
+        title: "Than Count Mismatch",
+        description: `Total thans (${totalThans}) must equal received thans (${receive.tiyarThan})`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const rows: LFormRow[] = allThanLines.map((line, idx) => ({
       id: line.id,
       rowNumber: idx + 1,
       itemType: line.pieceType === 'grade_b' ? 'standard_than' : line.pieceType === 'loose' ? 'loose_than' : 'cut_piece',
       thanId: line.id,
-      shade: line.isFaulty ? 'FAULTY' : receive.colour,
+      shade: line.isFaulty ? 'FAULTY' : line.colorName,
       quality: receive.quality,
-      thanLength: line.meters || line.placeholderMeters || 0,
-      meterEquivalent: line.meters || line.placeholderMeters || 0,
+      thanLength: line.meters || 0,
+      meterEquivalent: line.meters || 0,
       remarks: line.isFaulty ? 'Marked as Faulty' : ''
     }));
 
@@ -1111,7 +1057,7 @@ export const DyeingProductionModule = () => {
       operationDate: lformState.operationDate,
       operator: lformState.operator,
       rows,
-      totalThans: lformState.thanLines.length,
+      totalThans,
       totalMeters,
       status: finalize ? 'finalized' : 'draft'
     };
@@ -1136,130 +1082,40 @@ export const DyeingProductionModule = () => {
       dyeingReceiveId: '',
       operationDate: new Date().toISOString().split('T')[0],
       operator: '',
-      thanLines: []
+      colorGroups: []
     });
     loadData();
   };
 
-  // Create Voucher
-  const createVoucher = async () => {
-    if (!voucherState.lformId || !voucherState.warehouseId) {
-      toast({
-        title: "Validation Error",
-        description: "Please select L-Form and warehouse",
-        variant: "destructive"
-      });
-      return;
-    }
 
-    const lform = lforms.find(l => l.id === voucherState.lformId);
-    if (!lform) return;
 
-    // Group rows by shade for bulk voucher or keep as-is for loose
-    const lines: VoucherLine[] = voucherState.voucherType === 'bulk'
-      ? groupByShade(lform.rows)
-      : lform.rows.map((row, idx) => ({
-          id: Date.now().toString() + idx,
-          lineNumber: idx + 1,
-          thanId: row.thanId,
-          shade: row.shade,
-          quality: row.quality,
-          thanCount: row.thanLength,
-          meters: row.meterEquivalent,
-          itemType: row.itemType,
-          remarks: row.remarks
-        }));
+  const receivableJobs = useMemo(() => {
+    const epsilon = 0.01;
+    return dyeingJobs.filter((job) => {
+      const issuedMeters = Number(job.greyMeters) || 0;
+      if (issuedMeters <= 0) return false;
 
-    const totalThans = lines.reduce((sum, line) => sum + line.thanCount, 0);
-    const totalMeters = lines.reduce((sum, line) => sum + line.meters, 0);
+      const receivedMeters = dyeingReceives
+        .filter((receive) => receive.dyeingJobId === job.id)
+        .reduce((sum, receive) => sum + (Number(receive.tiyarMeters) || 0), 0);
 
-    const newVoucher: Voucher = {
-      id: Date.now().toString(),
-      voucherNumber: `V${voucherState.voucherType === 'bulk' ? '1' : '3'}-${Date.now()}`,
-      voucherType: voucherState.voucherType,
-      lotNo: lform.lotNo,
-      lformId: lform.id,
-      transferDate: voucherState.transferDate,
-      warehouseId: voucherState.warehouseId,
-      lines,
-      totalThans,
-      totalMeters,
-      status: 'draft',
-      createdBy: 'current_user',
-      createdAt: new Date().toISOString()
-    };
-
-    try {
-      await dyeingFlowApi.createVoucher(newVoucher);
-    } catch (error) {
-      console.error('Create voucher error:', error);
-      toast({
-        title: 'Save Failed',
-        description: 'Could not save voucher to server.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    toast({
-      title: "Success",
-      description: `Voucher ${newVoucher.voucherNumber} created`
+      return receivedMeters < issuedMeters - epsilon;
     });
-
-    setVoucherState({
-      lformId: '',
-      transferDate: new Date().toISOString().split('T')[0],
-      warehouseId: '',
-      voucherType: 'bulk'
-    });
-    loadData();
-  };
-
-  const groupByShade = (rows: LFormRow[]): VoucherLine[] => {
-    const shadeMap = new Map<string, VoucherLine>();
-    
-    rows.forEach(row => {
-      const key = `${row.shade}-${row.quality}`;
-      if (shadeMap.has(key)) {
-        const existing = shadeMap.get(key)!;
-        existing.thanCount += row.thanLength;
-        existing.meters += row.meterEquivalent;
-      } else {
-        shadeMap.set(key, {
-          id: Date.now().toString() + Math.random(),
-          lineNumber: shadeMap.size + 1,
-          shade: row.shade,
-          quality: row.quality,
-          thanCount: row.thanLength,
-          meters: row.meterEquivalent,
-          itemType: row.itemType
-        });
-      }
-    });
-
-    return Array.from(shadeMap.values());
-  };
-
-  const receivableJobs = useMemo(
-    () =>
-      dyeingJobs.filter((j) => {
-        const normalizedStatus = String(j.status || '').trim().toLowerCase();
-        return (normalizedStatus === 'issued' || normalizedStatus === 'in_dyeing') && !j.skipLForm;
-      }),
-    [dyeingJobs]
-  );
+  }, [dyeingJobs, dyeingReceives]);
 
   const selectedJob = receivableJobs.find(j => j.id === receiveForm.dyeingJobId);
-  const selectedJobs = selectedReceiveJobIds.length > 0
-    ? receivableJobs.filter((j) => selectedReceiveJobIds.includes(j.id))
-    : selectedJob
-      ? [selectedJob]
-      : [];
+  const selectedJobs = useMemo(
+    () =>
+      selectedReceiveJobIds.length > 0
+        ? receivableJobs.filter((j) => selectedReceiveJobIds.includes(j.id))
+        : selectedJob
+          ? [selectedJob]
+          : [],
+    [receivableJobs, selectedReceiveJobIds, selectedJob]
+  );
   const selectedWorkOrderNos = Array.from(new Set(selectedJobs.map((j) => j.workOrderNo)));
   const selectedWorkOrderNo = selectedWorkOrderNos[0] || '';
-  const selectedWorkOrderJobs = useMemo(
-    () => selectedJobs,
-    [selectedJobs]
-  );
+  const selectedWorkOrderJobs = selectedJobs;
   const selectedContextLots = useMemo(
     () =>
       Array.from(
@@ -1274,10 +1130,6 @@ export const DyeingProductionModule = () => {
       ),
     [selectedWorkOrderJobs]
   );
-  const selectedContextColours = useMemo(
-    () => Array.from(new Set(selectedWorkOrderJobs.map((j) => j.colour).filter(Boolean))),
-    [selectedWorkOrderJobs]
-  );
   const selectedContextQualities = useMemo(
     () => Array.from(new Set(selectedWorkOrderJobs.map((j) => j.quality).filter(Boolean))),
     [selectedWorkOrderJobs]
@@ -1290,11 +1142,8 @@ export const DyeingProductionModule = () => {
     () => selectedWorkOrderJobs.reduce((sum, j) => sum + (Number(j.greyMeters) || 0), 0),
     [selectedWorkOrderJobs]
   );
-  const selectedContextSchedules = useMemo(
-    () =>
-      selectedWorkOrderJobs.flatMap((j) =>
-        (j.deliverySchedules || []).map((s) => ({ ...s, colour: j.colour }))
-      ),
+  const selectedContextColorCount = useMemo(
+    () => selectedWorkOrderJobs.reduce((sum, j) => sum + Number(j.colorCount), 0),
     [selectedWorkOrderJobs]
   );
 
@@ -1312,14 +1161,13 @@ export const DyeingProductionModule = () => {
     }
   }, [receivableJobs, selectedReceiveJobIds, receiveForm.dyeingJobId]);
   const selectedReceive = dyeingReceives.find(r => r.id === lformState.dyeingReceiveId);
-  const selectedLForm = lforms.find(l => l.id === voucherState.lformId);
 
   return (
     <div className="space-y-6">
-      <DyeingDetailsView 
-        isOpen={isViewDialogOpen} 
-        onOpenChange={setIsViewDialogOpen} 
-        item={viewItem} 
+      <DyeingDetailsView
+        isOpen={isViewDialogOpen}
+        onOpenChange={setIsViewDialogOpen}
+        item={viewItem}
       />
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold">Dyeing Production Flow</h2>
@@ -1327,7 +1175,7 @@ export const DyeingProductionModule = () => {
           <Badge variant="secondary">🟩 Grey Material</Badge>
           <Badge variant="secondary">🟦 Dyeing</Badge>
           <Badge variant="secondary">🟨 L-Form</Badge>
-          <Badge variant="secondary">🟧 Packing</Badge>
+          <Badge variant="secondary">🟧 Cutting & Packing</Badge>
         </div>
       </div>
 
@@ -1336,7 +1184,7 @@ export const DyeingProductionModule = () => {
           <TabsTrigger value="issue">Issue Grey</TabsTrigger>
           <TabsTrigger value="receive">Step 1: Receive</TabsTrigger>
           <TabsTrigger value="lform">Step 2: L-Form</TabsTrigger>
-          <TabsTrigger value="voucher">Step 3: Voucher</TabsTrigger>
+          <TabsTrigger value="cutting-packing">Step 3: Cutting & Packing</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
         </TabsList>
 
@@ -1408,7 +1256,7 @@ export const DyeingProductionModule = () => {
                         <Label className="text-sm font-semibold text-muted-foreground mr-2">From Location</Label>
                         <Select
                           value={issueForm.fromLocation}
-                          onValueChange={v => setIssueForm({...issueForm, fromLocation: v})}
+                          onValueChange={v => setIssueForm({ ...issueForm, fromLocation: v })}
                           disabled={!selectedDyeingVendorId}
                         >
                           <SelectTrigger className="h-10 w-full">
@@ -1439,7 +1287,7 @@ export const DyeingProductionModule = () => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div className="grid grid-cols-1 gap-8">
                       {/* SOURCE LOTS SECTION */}
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
@@ -1543,229 +1391,70 @@ export const DyeingProductionModule = () => {
                         </div>
                       </div>
 
-                      {/* TARGET COLORS SECTION */}
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="text-sm font-semibold">2. Target: Dyeing Colors</h3>
-                            <p className="text-xs text-muted-foreground">Define how the total quantity is distributed by color.</p>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={addColorLine}
-                            disabled={!issueForm.fromLocation}
-                          >
-                            <Plus className="mr-1 h-3 w-3" />
-                            Add color
-                          </Button>
-                        </div>
-
-                        <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
-                          <Table>
-                            <TableHeader className="bg-muted/50">
-                              <TableRow className="h-10 border-b">
-                                <TableHead className="text-xs">Color Name</TableHead>
-                                <TableHead className="text-xs w-[120px] text-right">Meters to Dye</TableHead>
-                                <TableHead className="text-xs w-[100px] text-center">Schedule</TableHead>
-                                <TableHead className="w-[40px]" />
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {colorLines.map((line) => {
-                                const isExpanded = expandedScheduleItems.has(line.id);
-                                const scheduledQty = getScheduledQuantityDyeing(line);
-                                const scheduleCount = line.deliverySchedules?.length || 0;
-
-                                return (
-                                  <React.Fragment key={line.id}>
-                                    <TableRow className={`group transition-colors h-14 border-b last:border-0 hover:bg-muted/5 ${isExpanded ? 'bg-muted/20 border-b-0' : ''}`}>
-                                      <TableCell className="py-2">
-                                        <Select
-                                          value={line.colour}
-                                          onValueChange={(v) => updateColorLine(line.id, { colour: v })}
-                                        >
-                                          <SelectTrigger className="h-8 text-[11px]">
-                                            <SelectValue placeholder="Select color" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {COLOR_OPTIONS.map(option => (
-                                              <SelectItem key={option.value} value={option.value}>
-                                                <div className="flex items-center gap-2">
-                                                  <div
-                                                    className="w-2.5 h-2.5 rounded-full border border-gray-400"
-                                                    style={{ backgroundColor: option.hex }}
-                                                  />
-                                                  <span>{option.label}</span>
-                                                </div>
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-                                      </TableCell>
-                                      <TableCell className="py-2">
-                                        <Input
-                                          type="number"
-                                          step="0.01"
-                                          min={0}
-                                          value={line.greyMeters || ''}
-                                          className="text-right h-8 text-xs font-bold"
-                                          onChange={(e) => updateColorLine(line.id, { greyMeters: Number(e.target.value) })}
-                                        />
-                                      </TableCell>
-                                      <TableCell className="py-2 text-center">
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => toggleScheduleExpansionDyeing(line.id)}
-                                          className={`h-8 px-2 flex items-center gap-1 mx-auto transition-colors ${scheduleCount > 0 ? 'text-blue-600 bg-blue-50 hover:bg-blue-100' : 'text-muted-foreground hover:bg-muted/50'}`}
-                                        >
-                                          {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                                          <span className="text-[10px] uppercase font-bold">{scheduleCount} sch</span>
-                                        </Button>
-                                      </TableCell>
-                                      <TableCell className="py-2 text-right">
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                                          onClick={() => removeColorLine(line.id)}
-                                          disabled={colorLines.length <= 1}
-                                        >
-                                          <X className="h-3 w-3 text-destructive" />
-                                        </Button>
-                                      </TableCell>
-                                    </TableRow>
-                                    {isExpanded && (
-                                      <TableRow className="bg-muted/10 border-t-0 hover:bg-muted/10">
-                                        <TableCell colSpan={4} className="pb-4 pt-0">
-                                          <div className="ml-4 pl-4 border-l-2 border-primary/20 space-y-3 py-3">
-                                            <div className="flex items-center justify-between">
-                                              <h4 className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
-                                                Delivery Schedule Summary
-                                              </h4>
-                                              <div className="text-[10px] font-bold">
-                                                Total Scheduled: <span className={scheduledQty > line.greyMeters ? "text-destructive" : "text-blue-600"}>{scheduledQty.toFixed(2)}</span> / {line.greyMeters.toFixed(2)}m
-                                              </div>
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                              {(line.deliverySchedules || []).map((schedule) => (
-                                                <div key={schedule.id} className="flex items-center gap-2 bg-background p-2 rounded border shadow-sm">
-                                                  <div className="w-20">
-                                                    <Input
-                                                      type="number"
-                                                      min="0"
-                                                      value={schedule.quantity || ''}
-                                                      onChange={(e) => updateScheduleRowDyeing(line.id, schedule.id, 'quantity', e.target.value)}
-                                                      className="h-7 text-[10px] px-1 font-medium"
-                                                      placeholder="Qty"
-                                                    />
-                                                  </div>
-                                                  <div className="flex-1">
-                                                    <AppDatePicker
-                                                      value={schedule.pickDate}
-                                                      onChange={(nextValue) => updateScheduleRowDyeing(line.id, schedule.id, 'pickDate', nextValue)}
-                                                      className="h-7 text-[10px] px-2"
-                                                    />
-                                                  </div>
-                                                  <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => removeScheduleRowDyeing(line.id, schedule.id)}
-                                                    className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                                                  >
-                                                    <X className="h-3 w-3" />
-                                                  </Button>
-                                                </div>
-                                              ))}
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => addScheduleRowDyeing(line.id)}
-                                                className="h-8 text-[10px] uppercase font-bold border-dashed border-2 hover:bg-background transition-all"
-                                                disabled={scheduledQty >= line.greyMeters}
-                                              >
-                                                <Plus className="h-3 w-3 mr-1" />
-                                                Add Schedule Row
-                                              </Button>
-                                            </div>
-                                          </div>
-                                        </TableCell>
-                                      </TableRow>
-                                    )}
-                                  </React.Fragment>
-                                );
-                              })}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      </div>
                     </div>
 
-                    {/* CALCULATION & SUMMARY BAR */}
-                    {(() => {
-                      const totalSrc = sourceLots.reduce((sum, l) => sum + l.usedMeters, 0);
-                      const totalClr = colorLines.reduce((sum, c) => sum + c.greyMeters, 0);
-                      const diff = totalSrc - totalClr;
-                      const isMatched = Math.abs(diff) < 0.01;
-
-                      return (
-                        <div className="mt-8 p-4 rounded-lg bg-muted/50 border flex flex-col md:flex-row items-center justify-between gap-4">
-                          <div className="flex flex-wrap items-center gap-6">
-                            <div className="space-y-1">
-                              <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Source Pool</p>
-                              <p className="text-xl font-bold">{totalSrc.toFixed(2)}m</p>
-                            </div>
-                            <div className="h-8 w-px bg-border hidden md:block" />
-                            <div className="space-y-1">
-                              <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Target Total</p>
-                              <p className={`text-xl font-bold ${totalClr > totalSrc + 0.01 ? 'text-destructive' : ''}`}>{totalClr.toFixed(2)}m</p>
-                            </div>
+                    <div className="mt-6 p-4 rounded-lg bg-muted/50 border grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                      <div className="rounded-lg border bg-card p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
+                              Color Count
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Select total number of colors for this work order.
+                            </p>
                           </div>
-
-                          <div className="flex items-center gap-4">
-                            <div className="text-right hidden sm:block">
-                              {isMatched ? (
-                                <div className="flex items-center justify-end gap-2 text-emerald-600 font-semibold text-xs">
-                                  <Check className="h-4 w-4" />
-                                  Match Successful
-                                </div>
-                              ) : (
-                                <div className="flex items-center justify-end gap-2 text-destructive font-semibold text-xs">
-                                  <X className="h-4 w-4" />
-                                  {totalClr > totalSrc + 0.01 ? 'Limit Exceeded' : `Mismatch: ${Math.abs(diff).toFixed(2)}m`}
-                                </div>
-                              )}
-                            </div>
-
-                            <Button 
-                              onClick={handleIssueGreyMaterial}
-                              disabled={!isMatched || totalSrc <= 0}
-                              size="lg"
-                              className="px-8"
-                            >
-                              Issue to Dyeing
-                            </Button>
-                          </div>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={200}
+                            value={issueForm.colorCount}
+                            onChange={(e) =>
+                              setIssueForm((prev) => ({
+                                ...prev,
+                                colorCount: e.target.value,
+                              }))
+                            }
+                            className="h-9 w-24 text-center"
+                          />
                         </div>
-                      );
-                    })()}
+                      </div>
+
+                      <div className="rounded-lg border bg-card p-3 flex items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Source Pool</p>
+                          <p className="text-xl font-bold">
+                            {sourceLots.reduce((sum, l) => sum + l.usedMeters, 0).toFixed(2)}m
+                          </p>
+                        </div>
+                        <Button
+                          onClick={handleIssueGreyMaterial}
+                          disabled={sourceLots.reduce((sum, l) => sum + l.usedMeters, 0) <= 0}
+                          size="lg"
+                          className="px-8"
+                        >
+                          Issue to Dyeing
+                        </Button>
+                      </div>
+                    </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 mt-6 border-t">
                       <div className="space-y-3 border p-4 rounded-xl bg-muted/5 flex flex-col">
                         <Label className="text-sm font-bold text-slate-700">Production Notes</Label>
                         <Textarea
                           value={issueForm.notes}
-                          onChange={e => setIssueForm({...issueForm, notes: e.target.value})}
+                          onChange={e => setIssueForm({ ...issueForm, notes: e.target.value })}
                           placeholder="Include any specific instructions for the dyeing house..."
                           className="flex-1 min-h-[100px] text-sm bg-background resize-none border-muted-foreground/20 focus-visible:ring-primary/20"
                         />
                       </div>
                       <div className="space-y-3 border p-4 rounded-xl bg-muted/5 flex flex-col">
-                        <Label className="text-sm font-bold text-slate-700">Attachments (Picture / Doc)</Label>
-                        <div className="flex-1 flex flex-col justify-center border-2 border-dashed border-muted-foreground/20 rounded-lg p-4 bg-background relative transition-colors hover:bg-muted/10 group overflow-hidden">
+                        <Label className="text-sm font-bold text-slate-700">
+                          Attachments (Picture / Doc) <span className="text-destructive">*</span>
+                        </Label>
+                        <div className={`flex-1 flex flex-col justify-center border-2 border-dashed rounded-lg p-4 bg-background relative transition-colors hover:bg-muted/10 group overflow-hidden ${
+                          issueForm.attachmentUrl ? 'border-emerald-300/50' : 'border-muted-foreground/20'
+                        }`}>
                           <Input
                             type="file"
                             onChange={handleFileUpload}
@@ -1804,71 +1493,31 @@ export const DyeingProductionModule = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-8" />
                       <TableHead>Work Order No</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Lot No(s)</TableHead>
                       <TableHead>Quality</TableHead>
                       <TableHead>Dyeing House</TableHead>
-                      <TableHead>Colour</TableHead>
+                      <TableHead>Color Count</TableHead>
                       <TableHead>Grey Thans</TableHead>
                       <TableHead>Grey Meters</TableHead>
-                      <TableHead>Schedule</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="w-[52px] text-right" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {dyeingJobs.slice(-10).reverse().map(job => {
-                      const isListExpanded = expandedRecentJobs.has(job.id);
-                      const toggleRecentJobExpansion = () => {
-                        setExpandedRecentJobs(prev => {
-                          const next = new Set(prev);
-                          if (next.has(job.id)) next.delete(job.id);
-                          else next.add(job.id);
-                          return next;
-                        });
-                      };
-                      const hasSchedules = (job.deliverySchedules?.length || 0) > 0;
-                      const scheduledQty = job.deliverySchedules?.reduce((sum, s) => sum + (s.quantity || 0), 0) || 0;
-
+                    {[...dyeingJobs].sort((a, b) => new Date(b.issueDate || 0).getTime() - new Date(a.issueDate || 0).getTime()).map(job => {
                       return (
                         <React.Fragment key={job.id}>
                           <TableRow>
-                            <TableCell>
-                              {hasSchedules && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={toggleRecentJobExpansion}
-                                >
-                                  {isListExpanded ? (
-                                    <ChevronUp className="h-3 w-3" />
-                                  ) : (
-                                    <ChevronDown className="h-3 w-3" />
-                                  )}
-                                </Button>
-                              )}
-                            </TableCell>
                             <TableCell className="font-medium">{job.workOrderNo}</TableCell>
                             <TableCell className="text-muted-foreground">{formatDate(job.issueDate)}</TableCell>
                             <TableCell><Badge variant="outline" className="max-w-[200px] truncate">{job.lotNo}</Badge></TableCell>
                             <TableCell>{job.quality || '-'}</TableCell>
                             <TableCell>{job.dyeingHouse}</TableCell>
-                            <TableCell>{job.colour}</TableCell>
+                            <TableCell>{job.colorCount}</TableCell>
                             <TableCell>{job.greyThan}</TableCell>
                             <TableCell>{job.greyMeters.toFixed(2)}</TableCell>
-                            <TableCell>
-                              {hasSchedules ? (
-                                <div className="text-[11px] leading-tight">
-                                  <div className="font-medium text-primary">{job.deliverySchedules?.length} rows</div>
-                                  <div className="text-muted-foreground">{scheduledQty} / {job.greyMeters}m</div>
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground text-xs italic">No schedule</span>
-                              )}
-                            </TableCell>
                             <TableCell>
                               <Badge variant={job.status === 'completed' ? 'default' : 'secondary'} className="capitalize">
                                 {job.status.replace('_', ' ')}
@@ -1901,29 +1550,12 @@ export const DyeingProductionModule = () => {
                               </div>
                             </TableCell>
                           </TableRow>
-                          {isListExpanded && hasSchedules && (
-                            <TableRow className="bg-muted/30">
-                              <TableCell colSpan={10} className="p-0">
-                                <div className="p-3 ml-8 border-l-2 border-primary/20 space-y-2">
-                                  <p className="text-[10px] font-bold uppercase text-muted-foreground">Delivery Schedule Details</p>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                    {job.deliverySchedules?.map((s, idx) => (
-                                      <div key={idx} className="flex justify-between items-center bg-background p-2 rounded border text-xs shadow-sm">
-                                        <span className="font-semibold">{s.quantity}m</span>
-                                        <span className="text-muted-foreground">{formatDate(s.pickDate)}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          )}
                         </React.Fragment>
                       );
                     })}
                     {dyeingJobs.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                        <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
                           No issuance work orders found. Click 'New Issuance' to create one.
                         </TableCell>
                       </TableRow>
@@ -1964,12 +1596,12 @@ export const DyeingProductionModule = () => {
                         className="w-full justify-between h-10 px-3 font-normal bg-background"
                       >
                         {selectedReceiveJobIds.length > 1
-                          ? `${selectedReceiveJobIds.length} colors selected`
+                          ? `${selectedReceiveJobIds.length} work orders selected`
                           : receiveForm.dyeingJobId
                             ? (() => {
-                                const j = dyeingJobs.find((job) => job.id === receiveForm.dyeingJobId);
-                                return j ? <span className="truncate">{j.workOrderNo} · {j.dyeingHouse}</span> : "Select work order...";
-                              })()
+                              const j = dyeingJobs.find((job) => job.id === receiveForm.dyeingJobId);
+                              return j ? <span className="truncate">{j.workOrderNo} · {j.dyeingHouse}</span> : "Select work order...";
+                            })()
                             : "Select work order..."}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
@@ -2049,8 +1681,8 @@ export const DyeingProductionModule = () => {
                       <p className="text-sm font-semibold">{selectedContextLots.join(', ') || '-'}</p>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-[10px] uppercase font-bold text-muted-foreground">Colour</p>
-                      <p className="text-sm font-semibold">{selectedContextColours.join(', ') || '-'}</p>
+                      <p className="text-[10px] uppercase font-bold text-muted-foreground">Color Count</p>
+                      <p className="text-sm font-semibold">{selectedContextColorCount || 1}</p>
                     </div>
                     <div className="space-y-1">
                       <p className="text-[10px] uppercase font-bold text-muted-foreground">Quality</p>
@@ -2067,20 +1699,6 @@ export const DyeingProductionModule = () => {
                       <p className="text-sm font-bold text-primary">{selectedContextIssuedMeters.toFixed(2)} m</p>
                     </div>
                   </div>
-                  {selectedContextSchedules.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-primary/5">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Target Delivery Schedule</p>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedContextSchedules.map((s, idx) => (
-                          <div key={idx} className="bg-background/80 px-3 py-1.5 rounded-md border border-primary/10 text-[11px] font-medium flex gap-3 items-center shadow-sm">
-                            <span className="text-primary">{s.quantity}m</span>
-                            <span className="text-muted-foreground border-l pl-3">{s.colour}</span>
-                            <span className="text-muted-foreground border-l pl-3">{formatDate(s.pickDate)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -2117,7 +1735,7 @@ export const DyeingProductionModule = () => {
                         placeholder="Ex: 500.25"
                         className="h-10 text-sm font-bold bg-background border-emerald-200 placeholder:text-muted-foreground/45"
                         value={receiveForm.tiyarMeters || ''}
-                        onChange={e => setReceiveForm({...receiveForm, tiyarMeters: e.target.value})}
+                        onChange={e => setReceiveForm({ ...receiveForm, tiyarMeters: e.target.value })}
                       />
                     </div>
                   </div>
@@ -2140,8 +1758,8 @@ export const DyeingProductionModule = () => {
                     {receiveForm.thanLines.length > 0 && (
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 max-h-[300px] overflow-y-auto p-1">
                         {receiveForm.thanLines.map((line, idx) => (
-                          <div 
-                            key={line.id} 
+                          <div
+                            key={line.id}
                             className="flex items-center gap-2 p-2 rounded-lg border bg-card hover:bg-muted/5 transition-colors shadow-sm"
                           >
                             <div className="flex-shrink-0 w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[11px] font-bold text-muted-foreground/80">
@@ -2174,7 +1792,7 @@ export const DyeingProductionModule = () => {
                         ))}
                       </div>
                     )}
-                    
+
                     {receiveForm.thanLines.length > 0 && (
                       <div className="mt-4 p-4 bg-muted/40 border rounded-lg flex flex-col gap-2 text-sm">
                         <h4 className="font-semibold mb-1 uppercase text-[10px] tracking-wider text-muted-foreground">Summary:</h4>
@@ -2192,24 +1810,24 @@ export const DyeingProductionModule = () => {
                             <strong>Faulty Thans:</strong> {receiveForm.thanLines.filter(l => l.isFaulty).length}
                           </div>
                         </div>
-                        
+
                         {receiveForm.thanLines.some(l => l.isFaulty) && (
                           <div className="bg-destructive/10 p-2 rounded border border-destructive/20 text-xs mt-1 flex items-start gap-2">
                             <AlertTriangle className="h-3 w-3 mt-0.5 text-destructive shrink-0" />
                             <div>
-                                <span className="font-bold text-destructive uppercase tracking-tighter mr-2">List of Faulty:</span>
-                                <span>
-                                  {receiveForm.thanLines
-                                    .map((l, i) => l.isFaulty ? `#${i + 1}` : null)
-                                    .filter(Boolean)
-                                    .join(', ')}
-                                </span>
+                              <span className="font-bold text-destructive uppercase tracking-tighter mr-2">List of Faulty:</span>
+                              <span>
+                                {receiveForm.thanLines
+                                  .map((l, i) => l.isFaulty ? `#${i + 1}` : null)
+                                  .filter(Boolean)
+                                  .join(', ')}
+                              </span>
                             </div>
                           </div>
                         )}
-                        
+
                         <div className={`mt-2 font-bold bg-background p-2 border rounded ${Math.abs(receiveForm.thanLines.reduce((s, l) => s + l.meters, 0) - selectedContextIssuedMeters) < 0.01 ? 'text-emerald-600 border-emerald-200' : 'text-amber-600 border-amber-200'}`}>
-                            Comparison Vs. Issued Target: {selectedContextIssuedMeters.toFixed(2)} M
+                          Comparison Vs. Issued Target: {selectedContextIssuedMeters.toFixed(2)} M
                         </div>
                       </div>
                     )}
@@ -2251,7 +1869,7 @@ export const DyeingProductionModule = () => {
                     <Label className="text-[11px] font-bold uppercase text-muted-foreground tracking-tight">Additional Remarks / Notes</Label>
                     <Textarea
                       value={receiveForm.notes}
-                      onChange={e => setReceiveForm({...receiveForm, notes: e.target.value})}
+                      onChange={e => setReceiveForm({ ...receiveForm, notes: e.target.value })}
                       placeholder="Enter any specific details or remarks about this received lot..."
                       className="min-h-[80px] text-sm bg-muted/20 border-primary/5 focus:border-primary/20 transition-colors"
                     />
@@ -2285,33 +1903,40 @@ export const DyeingProductionModule = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {dyeingReceives.slice(-5).reverse().map(receive => (
-                          <TableRow key={receive.id}>
-                            <TableCell className="font-medium">{receive.receiveNumber}</TableCell>
-                            <TableCell><Badge variant="outline">{receive.lotNo}</Badge></TableCell>
-                            <TableCell className="text-sm">{receive.dyeingName}</TableCell>
-                            <TableCell className="text-sm font-medium">{receive.tiyarThan}</TableCell>
-                            <TableCell className="text-sm font-bold">{receive.tiyarMeters.toFixed(2)}m</TableCell>
-                            <TableCell>
-                              <Badge variant={receive.shortagePercent > 5 ? 'destructive' : 'secondary'} className="text-[10px]">
-                                {receive.shortagePercent}%
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-primary hover:bg-primary/10"
-                                onClick={() => {
-                                  setViewItem(receive);
-                                  setIsViewDialogOpen(true);
-                                }}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
+                    {dyeingReceives.map(receive => (
+                      <TableRow key={receive.id}>
+                        <TableCell className="font-medium">{receive.receiveNumber}</TableCell>
+                        <TableCell><Badge variant="outline">{receive.lotNo}</Badge></TableCell>
+                        <TableCell className="text-sm">{receive.dyeingName}</TableCell>
+                        <TableCell className="text-sm font-medium">{receive.tiyarThan}</TableCell>
+                        <TableCell className="text-sm font-bold">{receive.tiyarMeters.toFixed(2)}m</TableCell>
+                        <TableCell>
+                          <Badge variant={receive.shortagePercent > 5 ? 'destructive' : 'secondary'} className="text-[10px]">
+                            {receive.shortagePercent}%
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-primary hover:bg-primary/10"
+                            onClick={() => {
+                              setViewItem(receive);
+                              setIsViewDialogOpen(true);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
                     ))}
+                    {dyeingReceives.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-16 text-center text-muted-foreground">
+                          No receives found.
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -2339,9 +1964,9 @@ export const DyeingProductionModule = () => {
                       >
                         {lformState.dyeingReceiveId
                           ? (() => {
-                              const r = dyeingReceives.find((rec) => rec.id === lformState.dyeingReceiveId);
-                              return r ? <span className="truncate">{r.lotNo} ({r.tiyarThan} Than)</span> : "Select lot...";
-                            })()
+                            const r = dyeingReceives.find((rec) => rec.id === lformState.dyeingReceiveId);
+                            return r ? <span className="truncate">{r.lotNo} ({r.tiyarThan} Than)</span> : "Select lot...";
+                          })()
                           : "Select lot..."}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
@@ -2358,64 +1983,35 @@ export const DyeingProductionModule = () => {
                                 return job?.skipLForm !== true;
                               })
                               .map((receive) => {
-                              const relatedJob = dyeingJobs.find(j => j.id === receive.dyeingJobId);
-                              return (
-                                <CommandItem
-                                  key={receive.id}
-                                  value={`${receive.lotNo} ${relatedJob?.workOrderNo} ${relatedJob?.dyeingHouse}`}
+                                const relatedJob = dyeingJobs.find(j => j.id === receive.dyeingJobId);
+                                return (
+                                  <CommandItem
+                                    key={receive.id}
+                                    value={`${receive.lotNo} ${relatedJob?.workOrderNo} ${relatedJob?.dyeingHouse}`}
                                     onSelect={() => {
-                                      const numThans = receive?.tiyarThan || 0;
-                                      let next: { 
-                                        id: string; 
-                                        meters: number; 
-                                        placeholderMeters?: number;
-                                        isFaulty?: boolean;
-                                        pieceType: 'loose' | 'grade_b' | 'cut_piece';
-                                      }[] = [];
-                                      
-                                      // If receive has granular thanDetails, use them as SUGGESTIONS (placeholders)
-                                      if (receive.thanDetails && receive.thanDetails.length > 0) {
-                                        next = receive.thanDetails.map(td => ({ 
-                                          id: td.id, 
-                                          meters: 0, 
-                                          placeholderMeters: td.meters,
-                                          isFaulty: false,
-                                          pieceType: 'loose'
-                                        }));
-                                      } else {
-                                        for (let i = 0; i < numThans; i++) {
-                                          next.push({ 
-                                            id: `than-${Date.now()}-${i}`, 
-                                            meters: 0,
-                                            isFaulty: false,
-                                            pieceType: 'loose'
-                                          });
-                                        }
-                                      }
-                                      
-                                      setLformState({...lformState, dyeingReceiveId: receive.id, thanLines: next});
+                                      setLformState({ ...lformState, dyeingReceiveId: receive.id, colorGroups: [] });
                                       setOpenReceiveCombo(false);
                                     }}
-                                  className="flex items-start py-2"
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4 flex-shrink-0 mt-0.5",
-                                      lformState.dyeingReceiveId === receive.id ? "opacity-100 text-primary" : "opacity-0"
-                                    )}
-                                  />
-                                  <div className="flex flex-col gap-0.5 truncate">
-                                    <span className="font-medium">{receive.lotNo} · <span className="font-normal text-muted-foreground">{receive.quality}</span></span>
-                                    <span className="text-[10px] uppercase font-bold text-muted-foreground/80">
-                                      {relatedJob?.workOrderNo} · {relatedJob?.dyeingHouse}
-                                    </span>
-                                    <span className="text-xs text-muted-foreground mt-0.5">
-                                      {receive.tiyarThan} Than, {receive.tiyarMeters.toFixed(2)} M
-                                    </span>
-                                  </div>
-                                </CommandItem>
-                              );
-                            })}
+                                    className="flex items-start py-2"
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4 flex-shrink-0 mt-0.5",
+                                        lformState.dyeingReceiveId === receive.id ? "opacity-100 text-primary" : "opacity-0"
+                                      )}
+                                    />
+                                    <div className="flex flex-col gap-0.5 truncate">
+                                      <span className="font-medium">{receive.lotNo} · <span className="font-normal text-muted-foreground">{receive.quality}</span></span>
+                                      <span className="text-[10px] uppercase font-bold text-muted-foreground/80">
+                                        {relatedJob?.workOrderNo} · {relatedJob?.dyeingHouse}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground mt-0.5">
+                                        {receive.tiyarThan} Than, {receive.tiyarMeters.toFixed(2)} M
+                                      </span>
+                                    </div>
+                                  </CommandItem>
+                                );
+                              })}
                           </CommandGroup>
                         </CommandList>
                       </Command>
@@ -2433,7 +2029,7 @@ export const DyeingProductionModule = () => {
                   <Label>Operator *</Label>
                   <Input
                     value={lformState.operator}
-                    onChange={e => setLformState({...lformState, operator: e.target.value})}
+                    onChange={e => setLformState({ ...lformState, operator: e.target.value })}
                     placeholder="Operator name"
                   />
                 </div>
@@ -2479,152 +2075,300 @@ export const DyeingProductionModule = () => {
               })()}
 
               <div className="pt-2 border-t mt-4">
-                <div className="flex items-center justify-between pb-2 border-b mb-4">
+                <div className="flex items-center justify-between pb-3 mb-4 border-b">
                   <div>
                     <h3 className="text-sm font-bold flex items-center gap-2">
                       <div className="h-5 w-5 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px]">L</div>
-                      Received Than Entry
+                      Color-wise Than Entry
                     </h3>
-                    <p className="text-[11px] text-muted-foreground leading-tight">Enter count first, then specify individual meters to construct L-Form rows.</p>
+                    <p className="text-[11px] text-muted-foreground leading-tight">Add colors and specify thans for each color. Total must match received amounts.</p>
                   </div>
-                  <div className="flex items-center gap-3 bg-muted/30 p-1 rounded-lg border">
-                    <Label className="text-[10px] font-bold uppercase text-muted-foreground pl-2 leading-none">Total Than</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={500}
-                      className="w-16 h-7 text-center font-bold focus:ring-1 text-xs"
-                      placeholder="0"
-                      value={lformState.thanLines.length || ''}
-                      onChange={(e) => {
-                        const n = Math.max(0, Math.min(500, Number(e.target.value)));
-                        setLformState(prev => {
-                          const next: { id: string; meters: number }[] = [];
-                          for (let i = 0; i < n; i++) {
-                            next.push(prev.thanLines[i] ?? { id: `than-${Date.now()}-${i}`, meters: 0 });
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setLformState(prev => ({
+                        ...prev,
+                        colorGroups: [
+                          ...prev.colorGroups,
+                          {
+                            id: `color-${Date.now()}`,
+                            colorName: '',
+                            thanCount: 0,
+                            thanLines: []
                           }
-                          return { ...prev, thanLines: next };
-                        });
-                      }}
-                    />
-                  </div>
+                        ]
+                      }));
+                    }}
+                    disabled={(() => {
+                      if (!lformState.dyeingReceiveId) return true;
+                      const selectedReceive = dyeingReceives.find(r => r.id === lformState.dyeingReceiveId);
+                      if (!selectedReceive) return true;
+                      const totalAllocated = lformState.colorGroups.reduce((sum, g) => sum + g.thanCount, 0);
+                      return totalAllocated >= selectedReceive.tiyarThan;
+                    })()}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Color Group
+                  </Button>
                 </div>
 
-                {lformState.thanLines.length > 0 && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 max-h-[400px] overflow-y-auto p-1">
-                    {lformState.thanLines.map((line, idx) => (
-                      <div 
-                        key={line.id} 
-                        className={`flex flex-col gap-2 p-2 rounded-lg border transition-all shadow-sm ${line.isFaulty ? 'bg-destructive/5 border-destructive/20 ring-1 ring-destructive/10' : 'bg-card hover:bg-muted/5'}`}
-                      >
-                        <div className="flex items-center gap-2">
-                            <div className="flex flex-col items-center gap-1">
-                                <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold ${line.isFaulty ? 'bg-destructive/20 text-destructive' : 'bg-muted text-muted-foreground/80'}`}>
-                                  {idx + 1}
-                                </div>
-                                <input 
-                                    type="checkbox"
-                                    checked={line.isFaulty || false}
-                                    onChange={(e) => {
-                                        const checked = e.target.checked;
-                                        setLformState(prev => ({
-                                            ...prev,
-                                            thanLines: prev.thanLines.map((l, i) => i === idx ? { ...l, isFaulty: checked } : l)
-                                        }));
-                                    }}
-                                    className="h-3 w-3 accent-destructive"
-                                    title="Mark as faulty"
-                                />
-                            </div>
-                            <div className="relative flex-1">
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min={0}
-                                placeholder={line.placeholderMeters ? line.placeholderMeters.toFixed(2) : "0.00"}
-                                className={`h-9 pl-7 pr-2 text-sm font-bold focus:ring-1 transition-all ${!line.meters ? 'opacity-40 bg-muted/20' : 'opacity-100 bg-background'}`}
-                                value={line.meters || ''}
-                                onChange={(e) => {
-                                  const val = Number(e.target.value);
-                                  setLformState(prev => ({
-                                    ...prev,
-                                    thanLines: prev.thanLines.map((l, i) => i === idx ? { ...l, meters: val } : l)
-                                  }));
-                                }}
-                              />
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-muted-foreground/40">M</span>
-                            </div>
+                {/* Color Groups */}
+                <div className="space-y-4">
+                  {lformState.colorGroups.map((group, groupIdx) => (
+                    <div key={group.id} className="p-4 border-2 rounded-xl bg-muted/20">
+                      <div className="flex items-start gap-4 mb-3">
+                        <div className="flex-1 grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Color *</Label>
+                            <Select 
+                              value={group.colorName} 
+                              onValueChange={(v) => {
+                                setLformState(prev => ({
+                                  ...prev,
+                                  colorGroups: prev.colorGroups.map((g, i) => 
+                                    i === groupIdx ? { ...g, colorName: v } : g
+                                  )
+                                }));
+                              }}
+                            >
+                              <SelectTrigger className="h-9">
+                                <SelectValue placeholder="Select color" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {COLOR_OPTIONS.map(option => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    <div className="flex items-center gap-2">
+                                      <div
+                                        className="w-4 h-4 rounded-full border border-gray-400 flex-shrink-0"
+                                        style={{ backgroundColor: option.hex }}
+                                      />
+                                      <span>{option.label}</span>
+                                      <span className="text-xs text-muted-foreground font-mono">{option.hex}</span>
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-xs">Number of Thans *</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              value={group.thanCount || ''}
+                              onChange={(e) => {
+                                const requestedCount = Math.max(0, Number(e.target.value));
+                                const selectedReceive = dyeingReceives.find(r => r.id === lformState.dyeingReceiveId);
+                                
+                                if (!selectedReceive) return;
+                                
+                                // Calculate total thans from OTHER color groups
+                                const otherGroupsTotal = lformState.colorGroups
+                                  .filter((_, i) => i !== groupIdx)
+                                  .reduce((sum, g) => sum + g.thanCount, 0);
+                                
+                                // Check if adding this would exceed the received total
+                                const wouldExceed = otherGroupsTotal + requestedCount > selectedReceive.tiyarThan;
+                                
+                                if (wouldExceed) {
+                                  const maxAllowed = selectedReceive.tiyarThan - otherGroupsTotal;
+                                  toast({
+                                    title: "Than Limit Exceeded",
+                                    description: `Cannot exceed received thans (${selectedReceive.tiyarThan}). Maximum ${maxAllowed} more thans can be added to this color.`,
+                                    variant: "destructive"
+                                  });
+                                  return;
+                                }
+                                
+                                const n = requestedCount;
+                                setLformState(prev => ({
+                                  ...prev,
+                                  colorGroups: prev.colorGroups.map((g, i) => {
+                                    if (i !== groupIdx) return g;
+                                    const newLines: typeof g.thanLines = [];
+                                    for (let j = 0; j < n; j++) {
+                                      newLines.push(g.thanLines[j] ?? {
+                                        id: `than-${Date.now()}-${j}`,
+                                        meters: 0,
+                                        pieceType: 'loose'
+                                      });
+                                    }
+                                    return { ...g, thanCount: n, thanLines: newLines };
+                                  })
+                                }));
+                              }}
+                              placeholder="0"
+                              className="h-9"
+                            />
+                          </div>
                         </div>
-                        <Select 
-                          value={line.pieceType} 
-                          onValueChange={(val: any) => {
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:bg-destructive/10 mt-6"
+                          onClick={() => {
                             setLformState(prev => ({
                               ...prev,
-                              thanLines: prev.thanLines.map((l, i) => i === idx ? { ...l, pieceType: val } : l)
+                              colorGroups: prev.colorGroups.filter((_, i) => i !== groupIdx)
                             }));
                           }}
                         >
-                          <SelectTrigger className="h-7 text-[10px] py-0 px-2 font-semibold">
-                            <SelectValue placeholder="Type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="loose">Loose</SelectItem>
-                            <SelectItem value="grade_b">Grade B</SelectItem>
-                            <SelectItem value="cut_piece">Cut Piece</SelectItem>
-                          </SelectContent>
-                        </Select>
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
-                    ))}
-                  </div>
-                )}
-                
-                {lformState.thanLines.length > 0 && (
-                  <div className="mt-4 p-4 bg-muted/40 border rounded-lg flex flex-col gap-2 text-sm">
-                    <h4 className="font-semibold mb-1 uppercase text-[10px] tracking-wider text-muted-foreground">Summary:</h4>
-                    <div className="grid grid-cols-4 gap-4">
-                      <div>
-                        <strong>Total Rows:</strong> {lformState.thanLines.length}
-                      </div>
-                      <div>
-                        <strong>Total Than:</strong> {lformState.thanLines.length}
-                      </div>
-                      <div>
-                        <strong>Total Meters:</strong> {lformState.thanLines.reduce((sum, r) => sum + r.meters, 0).toFixed(2)} M
-                      </div>
-                      <div className={lformState.thanLines.filter(l => l.isFaulty).length > 0 ? "text-destructive font-bold" : ""}>
-                        <strong>Faulty items:</strong> {lformState.thanLines.filter(l => l.isFaulty).length}
-                      </div>
+
+                      {/* Than entries for this color */}
+                      {group.thanLines.length > 0 && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mt-3 pt-3 border-t">
+                          {group.thanLines.map((line, lineIdx) => (
+                            <div key={line.id} className={`flex flex-col gap-2 p-2 rounded-lg border transition-all shadow-sm ${line.isFaulty ? 'bg-destructive/5 border-destructive/20' : 'bg-card'}`}>
+                              <div className="flex items-center gap-2">
+                                <div className="flex flex-col items-center gap-1">
+                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold ${line.isFaulty ? 'bg-destructive/20 text-destructive' : 'bg-muted text-muted-foreground/80'}`}>
+                                    {lineIdx + 1}
+                                  </div>
+                                  <input
+                                    type="checkbox"
+                                    checked={line.isFaulty || false}
+                                    onChange={(e) => {
+                                      setLformState(prev => ({
+                                        ...prev,
+                                        colorGroups: prev.colorGroups.map((g, i) =>
+                                          i === groupIdx
+                                            ? {
+                                                ...g,
+                                                thanLines: g.thanLines.map((l, j) =>
+                                                  j === lineIdx ? { ...l, isFaulty: e.target.checked } : l
+                                                )
+                                              }
+                                            : g
+                                        )
+                                      }));
+                                    }}
+                                    className="h-3 w-3 accent-destructive"
+                                    title="Mark as faulty"
+                                  />
+                                </div>
+                                <div className="relative flex-1">
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min={0}
+                                    placeholder="0.00"
+                                    className="h-9 pl-7 pr-2 text-sm font-bold"
+                                    value={line.meters || ''}
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value);
+                                      setLformState(prev => ({
+                                        ...prev,
+                                        colorGroups: prev.colorGroups.map((g, i) =>
+                                          i === groupIdx
+                                            ? {
+                                                ...g,
+                                                thanLines: g.thanLines.map((l, j) =>
+                                                  j === lineIdx ? { ...l, meters: val } : l
+                                                )
+                                              }
+                                            : g
+                                        )
+                                      }));
+                                    }}
+                                  />
+                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-muted-foreground/40">M</span>
+                                </div>
+                              </div>
+                              <Select
+                                value={line.pieceType}
+                                onValueChange={(val: any) => {
+                                  setLformState(prev => ({
+                                    ...prev,
+                                    colorGroups: prev.colorGroups.map((g, i) =>
+                                      i === groupIdx
+                                        ? {
+                                            ...g,
+                                            thanLines: g.thanLines.map((l, j) =>
+                                              j === lineIdx ? { ...l, pieceType: val } : l
+                                            )
+                                          }
+                                        : g
+                                    )
+                                  }));
+                                }}
+                              >
+                                <SelectTrigger className="h-7 text-[10px] py-0 px-2 font-semibold">
+                                  <SelectValue placeholder="Type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="loose">Loose</SelectItem>
+                                  <SelectItem value="grade_b">Grade B</SelectItem>
+                                  <SelectItem value="cut_piece">Cut Piece</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Group summary */}
+                      {group.thanLines.length > 0 && (
+                        <div className="mt-3 pt-2 border-t flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Group Total:</span>
+                          <span className="font-bold">{group.thanLines.reduce((s, l) => s + l.meters, 0).toFixed(2)} M ({group.thanLines.length} Than)</span>
+                        </div>
+                      )}
                     </div>
+                  ))}
+                </div>
 
-                    {lformState.thanLines.some(l => l.isFaulty) && (
-                      <div className="bg-destructive/10 p-2 rounded border border-destructive/20 text-xs mt-1 flex items-start gap-2">
-                        <AlertTriangle className="h-3 w-3 mt-0.5 text-destructive shrink-0" />
+                {/* Overall Summary */}
+                {lformState.colorGroups.length > 0 && (() => {
+                  const allLines = lformState.colorGroups.flatMap(g => g.thanLines);
+                  const totalMeters = allLines.reduce((s, l) => s + l.meters, 0);
+                  const totalThans = allLines.length;
+                  const selectedReceive = dyeingReceives.find(r => r.id === lformState.dyeingReceiveId);
+                  const metersDiff = selectedReceive ? Math.abs(totalMeters - selectedReceive.tiyarMeters) : 0;
+                  const thansDiff = selectedReceive ? totalThans - selectedReceive.tiyarThan : 0;
+
+                  return (
+                    <div className="mt-4 p-4 bg-muted/40 border-2 rounded-lg">
+                      <h4 className="font-semibold mb-3 uppercase text-[10px] tracking-wider text-muted-foreground">Overall Summary:</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-3">
                         <div>
-                            <span className="font-bold text-destructive uppercase tracking-tighter mr-2">List of Faulty:</span>
-                            <span>
-                              {lformState.thanLines
-                                .map((l, i) => l.isFaulty ? `#${i + 1}` : null)
-                                .filter(Boolean)
-                                .join(', ')}
-                            </span>
+                          <strong>Total Colors:</strong> {lformState.colorGroups.length}
+                        </div>
+                        <div className={thansDiff !== 0 ? "text-destructive font-bold" : "text-emerald-600"}>
+                          <strong>Total Thans:</strong> {totalThans}
+                          {selectedReceive && ` / ${selectedReceive.tiyarThan}`}
+                          {thansDiff !== 0 && ` (${thansDiff > 0 ? '+' : ''}${thansDiff})`}
+                        </div>
+                        <div className={metersDiff > 0.5 ? "text-destructive font-bold" : "text-emerald-600"}>
+                          <strong>Total Meters:</strong> {totalMeters.toFixed(2)} M
+                          {selectedReceive && ` / ${selectedReceive.tiyarMeters.toFixed(2)} M`}
+                          {metersDiff > 0.5 && ` (${metersDiff.toFixed(2)} M diff)`}
+                        </div>
+                        <div className={allLines.filter(l => l.isFaulty).length > 0 ? "text-destructive font-bold" : ""}>
+                          <strong>Faulty:</strong> {allLines.filter(l => l.isFaulty).length}
                         </div>
                       </div>
-                    )}
-
-                    {selectedReceive && (
-                        <div className={`mt-2 font-bold bg-background p-2 border rounded ${lformState.thanLines.reduce((s, l) => s + l.meters, 0) > selectedReceive.tiyarMeters ? 'text-indigo-600 border-indigo-200' : 'text-emerald-600 border-emerald-200'}`}>
-                            Comparison Vs. Received Target: {selectedReceive.tiyarMeters.toFixed(2)} M
+                      {selectedReceive && (metersDiff > 0.5 || thansDiff !== 0) && (
+                        <div className="bg-amber-50 border border-amber-200 rounded p-2 text-xs text-amber-800">
+                          <AlertTriangle className="h-3 w-3 inline mr-1" />
+                          Totals don't match received amounts. Please adjust before finalizing.
                         </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="flex justify-end gap-2 mt-4">
-                <Button variant="outline" onClick={() => saveLForm(false)} disabled={lformState.thanLines.length === 0}>
+                <Button variant="outline" onClick={() => saveLForm(false)} disabled={lformState.colorGroups.length === 0}>
                   Save Draft
                 </Button>
-                <Button onClick={() => saveLForm(true)} disabled={lformState.thanLines.length === 0}>
+                <Button onClick={() => saveLForm(true)} disabled={lformState.colorGroups.length === 0}>
                   <Check className="mr-2 h-4 w-4" />
                   Finalize L-Form
                 </Button>
@@ -2645,7 +2389,7 @@ export const DyeingProductionModule = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {lforms.slice(-5).reverse().map(lform => (
+                    {lforms.slice(0, 5).map(lform => (
                       <TableRow key={lform.id}>
                         <TableCell>{lform.lformNumber}</TableCell>
                         <TableCell><Badge>{lform.lotNo}</Badge></TableCell>
@@ -2667,154 +2411,333 @@ export const DyeingProductionModule = () => {
           </Card>
         </TabsContent>
 
-        {/* Voucher Creation - Step 3 */}
-        <TabsContent value="voucher">
-          <Card>
-            <CardHeader>
-              <CardTitle>Step 3: Packing Department Transfer (Voucher)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <Label>Select L-Form *</Label>
-                  <Select value={voucherState.lformId} onValueChange={v => setVoucherState({...voucherState, lformId: v})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select L-Form" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {lforms.filter(l => l.status === 'finalized').map(lform => (
-                        <SelectItem key={lform.id} value={lform.id}>
-                          {lform.lformNumber} - Lot {lform.lotNo} ({lform.totalThans} Than, {lform.totalMeters.toFixed(2)} M)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Voucher Type *</Label>
-                  <Select value={voucherState.voucherType} onValueChange={v => setVoucherState({...voucherState, voucherType: v as 'bulk' | 'loose'})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="bulk">Voucher No 1 - Bulk Transfer</SelectItem>
-                      <SelectItem value="loose">Voucher No 3 - Loose/Cut Pieces</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Transfer Date</Label>
-                  <AppDatePicker
-                    value={voucherState.transferDate}
-                    onChange={(nextValue) => setVoucherState({ ...voucherState, transferDate: nextValue })}
-                  />
-                </div>
-                <div>
-                  <Label>Warehouse Destination *</Label>
-                  <Select value={voucherState.warehouseId} onValueChange={v => setVoucherState({...voucherState, warehouseId: v})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select warehouse" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locations.map(loc => (
-                        <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+        {/* Cutting & Packing Tab */}
+        {/* Cutting & Packing Tab */}
+        <TabsContent value="cutting-packing" className="mt-0">
+          <Tabs defaultValue="cutting">
+            <div className="bg-slate-50 border-b p-2 rounded-b-md mb-6 -mt-2">
+              <TabsList className="bg-transparent space-x-2">
+                <TabsTrigger value="cutting" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                  <Scissors className="mr-2 h-4 w-4" />
+                  Cutting Batches
+                </TabsTrigger>
+                <TabsTrigger value="packing" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+                  <Package className="mr-2 h-4 w-4" />
+                  Packing Batches
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-              {selectedLForm && (
-                <div className="p-4 bg-muted rounded-lg mb-4">
-                  <h4 className="font-semibold mb-2">L-Form Preview:</h4>
-                  <div className="grid grid-cols-4 gap-2 text-sm mb-3">
-                    <div><strong>L-Form:</strong> {selectedLForm.lformNumber}</div>
-                    <div><strong>Lot:</strong> {selectedLForm.lotNo}</div>
-                    <div><strong>Total Rows:</strong> {selectedLForm.rows.length}</div>
-                    <div><strong>Total Meters:</strong> {selectedLForm.totalMeters.toFixed(2)}</div>
+            <TabsContent value="cutting">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                  <div>
+                    <CardTitle className="text-xl">Cutting Batches</CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">Convert approved L-Form fabric into cut bundles</p>
                   </div>
-                  <div className="max-h-48 overflow-y-auto border rounded p-2">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Than ID</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Shade</TableHead>
-                          <TableHead>Than</TableHead>
-                          <TableHead>Meters</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selectedLForm.rows.map(row => (
-                          <TableRow key={row.id}>
-                            <TableCell className="text-xs">{row.thanId}</TableCell>
-                            <TableCell className="text-xs">{row.itemType}</TableCell>
-                            <TableCell className="text-xs">{row.shade}</TableCell>
-                            <TableCell className="text-xs">{row.thanLength}</TableCell>
-                            <TableCell className="text-xs">{row.meterEquivalent.toFixed(2)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2">
-                <Button onClick={createVoucher} disabled={!selectedLForm || !voucherState.warehouseId}>
-                  <ArrowRight className="mr-2 h-4 w-4" />
-                  Create Voucher
-                </Button>
-              </div>
-
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold mb-3">Recent Vouchers</h3>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Voucher No</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Lot No</TableHead>
-                      <TableHead>Warehouse</TableHead>
-                      <TableHead>Total Than</TableHead>
-                      <TableHead>Total Meters</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {vouchers.slice(-5).reverse().map(voucher => {
-                      const warehouse = locations.find(l => l.id === voucher.warehouseId);
-                      return (
-                        <TableRow key={voucher.id}>
+                  <Button onClick={() => setIsCuttingDialogOpen(true)} className="bg-slate-900 text-white hover:bg-slate-800">
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Cutting Batch
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Batch #</TableHead>
+                        <TableHead>L-Form</TableHead>
+                        <TableHead>Style</TableHead>
+                        <TableHead>Fabric (m)</TableHead>
+                        <TableHead>Pieces</TableHead>
+                        <TableHead>Yield %</TableHead>
+                        <TableHead>Bundles</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {cuttingBatches.map(batch => (
+                        <TableRow key={batch.id}>
+                          <TableCell className="font-medium">{batch.batchNumber}</TableCell>
+                          <TableCell>{batch.lformId}</TableCell>
+                          <TableCell>{batch.style}</TableCell>
+                          <TableCell>{batch.fabricMeters}</TableCell>
+                          <TableCell>{batch.pieces}</TableCell>
+                          <TableCell className={batch.yieldPercent >= 98 ? 'text-emerald-600' : 'text-amber-600'}>{batch.yieldPercent.toFixed(1)}%</TableCell>
+                          <TableCell>{batch.bundlesCount}</TableCell>
                           <TableCell>
-                            <Badge variant={voucher.voucherType === 'bulk' ? 'default' : 'secondary'}>
-                              {voucher.voucherNumber}
+                            <Badge variant={batch.status === 'Open' ? 'outline' : 'secondary'} className={batch.status === 'Open' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : ''}>
+                              {batch.status}
                             </Badge>
                           </TableCell>
-                          <TableCell>{voucher.voucherType === 'bulk' ? 'Bulk' : 'Loose/Cut'}</TableCell>
-                          <TableCell><Badge>{voucher.lotNo}</Badge></TableCell>
-                          <TableCell>{warehouse?.name}</TableCell>
-                          <TableCell>{voucher.totalThans.toFixed(2)}</TableCell>
-                          <TableCell>{voucher.totalMeters.toFixed(2)}</TableCell>
-                          <TableCell>
-                            <Badge variant={voucher.status === 'approved' ? 'default' : 'secondary'}>
-                              {voucher.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Button variant="ghost" size="sm">
-                              <Printer className="h-4 w-4" />
+                          <TableCell className="text-right">
+                            <Button variant="outline" size="sm">
+                              <Eye className="mr-2 h-4 w-4" /> View
                             </Button>
                           </TableCell>
                         </TableRow>
-                      );
-                    })}
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="packing">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                  <div>
+                    <CardTitle className="text-xl">Packing Batches</CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">Pack cut bundles into finished goods using the active BOM</p>
+                  </div>
+                  <Button onClick={() => setIsPackingDialogOpen(true)} className="bg-slate-900 text-white hover:bg-slate-800">
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Packing Batch
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Batch #</TableHead>
+                        <TableHead>SKU</TableHead>
+                        <TableHead>BOM Ver.</TableHead>
+                        <TableHead>Input</TableHead>
+                        <TableHead>Packed</TableHead>
+                        <TableHead>Rejected</TableHead>
+                        <TableHead>Yield</TableHead>
+                        <TableHead>Destination</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {packingBatches.map(batch => (
+                        <TableRow key={batch.id}>
+                          <TableCell className="font-medium">{batch.batchNumber}</TableCell>
+                          <TableCell>{batch.sku}</TableCell>
+                          <TableCell>{batch.bomVersion}</TableCell>
+                          <TableCell>{batch.inputPieces}</TableCell>
+                          <TableCell>{batch.packedPieces}</TableCell>
+                          <TableCell>{batch.rejectedPieces}</TableCell>
+                          <TableCell>{batch.yieldPercent.toFixed(1)}%</TableCell>
+                          <TableCell>{batch.destination}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={batch.status === 'In Packing Store' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'}>
+                              {batch.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="outline" size="sm">
+                              <Eye className="mr-2 h-4 w-4" /> View
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+
+          {/* Dialogs */}
+          <Dialog open={isCuttingDialogOpen} onOpenChange={setIsCuttingDialogOpen}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-xl">Create Cutting Batch</DialogTitle>
+                <p className="text-sm text-muted-foreground">Convert approved L-Form fabric into cut bundles</p>
+              </DialogHeader>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4 mt-4">
+                <div>
+                  <Label>Approved L-Form *</Label>
+                  <Select>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Select L-Form" /></SelectTrigger>
+                    <SelectContent><SelectItem value="lf1">LF-101</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Available Fabric (m)</Label>
+                  <Input className="mt-1" disabled />
+                </div>
+                <div>
+                  <Label>Style / Product *</Label>
+                  <Input className="mt-1" placeholder="e.g. S-220 Polo" />
+                </div>
+                <div>
+                  <Label>Marker Reference</Label>
+                  <Input className="mt-1" placeholder="MK-..." />
+                </div>
+                <div>
+                  <Label>Planned Pieces</Label>
+                  <Input className="mt-1" />
+                </div>
+                <div>
+                  <Label>Fabric Consumed (m)</Label>
+                  <Input className="mt-1" />
+                </div>
+                <div>
+                  <Label>Actual Pieces *</Label>
+                  <Input className="mt-1" />
+                </div>
+                <div>
+                  <Label>Rejected Pieces</Label>
+                  <Input className="mt-1" />
+                </div>
+                <div>
+                  <Label>Wastage (m)</Label>
+                  <Input className="mt-1" />
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-lg flex justify-between items-center mt-6 border">
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Yield %</p>
+                  <p className="text-2xl font-semibold">0%</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Remaining Fabric</p>
+                  <p className="text-2xl font-semibold">0m</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Variance (pcs)</p>
+                  <p className="text-2xl font-semibold">0</p>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="font-medium">Cut Bundles</h4>
+                  <Button variant="outline" size="sm">
+                    <Plus className="mr-2 h-4 w-4" /> Add bundle
+                  </Button>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Bundle</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead>Qty</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {cuttingBundles.length > 0 ? cuttingBundles.map((b, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>{b.bundleId}</TableCell>
+                        <TableCell>
+                          <Select defaultValue={b.size}>
+                            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="S">S</SelectItem>
+                              <SelectItem value="M">M</SelectItem>
+                              <SelectItem value="L">L</SelectItem>
+                              <SelectItem value="XL">XL</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell><Input className="w-32" defaultValue={b.qty} /></TableCell>
+                      </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center text-muted-foreground py-4">No bundles added yet.</TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>
-            </CardContent>
-          </Card>
+
+              <div className="flex justify-end gap-2 mt-6">
+                <Button variant="outline" onClick={() => setIsCuttingDialogOpen(false)}>Cancel</Button>
+                <Button className="bg-slate-900 text-white hover:bg-slate-800">Save Cutting Batch</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isPackingDialogOpen} onOpenChange={setIsPackingDialogOpen}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-xl">Create Packing Batch</DialogTitle>
+                <p className="text-sm text-muted-foreground">Pick bundles, run BOM explosion, and record output</p>
+              </DialogHeader>
+
+              <div className="mt-4">
+                <h4 className="font-medium mb-3">Step 1 — Select Bundle(s)</h4>
+                <div className="border rounded-lg overflow-hidden mb-6">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12"></TableHead>
+                        <TableHead>Cut Batch</TableHead>
+                        <TableHead>Bundle</TableHead>
+                        <TableHead>Size</TableHead>
+                        <TableHead className="text-right">Available</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {packingSelectedBundles.length > 0 ? packingSelectedBundles.map((b, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell><CheckSquare className="h-4 w-4" /></TableCell>
+                          <TableCell>{b.cutBatch}</TableCell>
+                          <TableCell>{b.bundle}</TableCell>
+                          <TableCell>{b.size}</TableCell>
+                          <TableCell className="text-right">{b.available}</TableCell>
+                        </TableRow>
+                      )) : (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-4">No bundles selected.</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="grid grid-cols-3 gap-x-6 gap-y-4 mb-4">
+                  <div>
+                    <Label>Finished Good SKU *</Label>
+                    <Select>
+                      <SelectTrigger className="mt-1"><SelectValue placeholder="Select SKU" /></SelectTrigger>
+                      <SelectContent><SelectItem value="s1">SKU-S220-RED</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Input Pieces (from bundles)</Label>
+                    <Input className="mt-1" value="0" disabled />
+                  </div>
+                  <div>
+                    <Label>Active BOM</Label>
+                    <Input className="mt-1" value="—" disabled />
+                  </div>
+                  <div>
+                    <Label>Packed Qty *</Label>
+                    <Input className="mt-1" />
+                  </div>
+                  <div>
+                    <Label>Rejected Qty</Label>
+                    <Input className="mt-1" />
+                  </div>
+                  <div>
+                    <Label>Destination</Label>
+                    <Select defaultValue="store">
+                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="store">Packing Store</SelectItem>
+                        <SelectItem value="warehouse">Interim Warehouse</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="mb-6">
+                  <Label>Remarks</Label>
+                  <Textarea className="mt-1" />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsPackingDialogOpen(false)}>Cancel</Button>
+                <Button className="bg-slate-900 text-white hover:bg-slate-800">Save Packing Batch</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* Reports Tab */}
